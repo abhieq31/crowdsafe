@@ -134,7 +134,7 @@ API docs: `http://localhost:8000/docs`.
 ```bash
 pip install -e ".[dev]"
 pytest              # 38 tests: physics, planning, fusion, alerts, CAP, end-to-end sims, API, vision
-node --test tests/js
+node --test tests/js/*.test.mjs
 ruff check src tests
 docker compose up   # demo in a container
 ```

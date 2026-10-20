@@ -1,5 +1,5 @@
 // Checks that the offline browser planner matches the Python implementation.
-// Run: node --test tests/js
+// Run: node --test tests/js/*.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

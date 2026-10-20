@@ -21,7 +21,7 @@ Thank you for helping prevent crowd crushes. Contributions of every kind are nee
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-pytest && node --test tests/js && ruff check src tests
+pytest && node --test tests/js/*.test.mjs && ruff check src tests
 ```
 
 Commit messages: imperative mood ("Add stairs flow rate"), with a reference to the source for any safety constant you add.
