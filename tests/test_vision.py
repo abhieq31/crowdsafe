@@ -54,3 +54,34 @@ def test_motion_measures_ground_speed():
     out = m.update(f1, 0.5)  # 0.2 m in 0.5 s = 0.4 m/s
     assert out["z"]["mean_speed"] == pytest.approx(0.4, abs=0.05)
     assert out["z"]["velocity_variance"] < 0.01  # uniform motion means low turbulence
+
+
+def test_report_interval_slows_down_instead_of_shrinking_the_model():
+    from crowdsafe.vision.pipeline import report_interval
+
+    assert report_interval(0.3, 1.0) == 1.0  # fast device keeps the requested interval
+    assert report_interval(4.0, 1.0) == pytest.approx(6.7)  # 4 s inference -> report every 6.7 s
+
+
+def test_sanitize_drops_impossible_values_but_keeps_the_rest():
+    from crowdsafe.vision.pipeline import sanitize
+
+    o = sanitize({"zone_id": "z", "source": "c", "count": 50.0, "density": 45.0, "density_sigma": 6.0,
+                  "mean_speed": 30.0, "velocity_variance": 9.0})
+    assert o == {"zone_id": "z", "source": "c", "count": 50.0}
+    o = sanitize({"zone_id": "z", "source": "c", "density": 3.0, "mean_speed": float("nan")})
+    assert o == {"zone_id": "z", "source": "c", "density": 3.0}
+
+
+def test_post_drops_batches_the_server_will_never_accept(stub_server):
+    from crowdsafe.vision.pipeline import post
+
+    url, routes, _ = stub_server
+    obs = [{"zone_id": "z", "source": "c", "count": 1.0}]
+    routes["/api/observations"] = (200, b'{"accepted": 1, "rejected": 0}')
+    assert post(url, obs) == "ok"
+    routes["/api/observations"] = (422, b"{}")
+    assert post(url, obs) == "drop"  # retrying would block every later report
+    routes["/api/observations"] = (503, b"{}")
+    assert post(url, obs) == "retry"  # server down: keep for store-and-forward
+    assert post("http://127.0.0.1:9", obs, timeout=1) == "retry"

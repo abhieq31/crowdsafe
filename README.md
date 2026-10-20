@@ -110,13 +110,31 @@ flowchart LR
 
 ## Live mode with real cameras
 
+**On the control-room computer:**
+
 ```bash
-pip install -e ".[server,vision,onnx]"
-crowdsafe serve --venue my_venue.json                 # control-room server
-crowdsafe edge --source rtsp://cam1/stream \
-               --calibration cam1.json --model density.onnx \
-               --server http://control-room:8000      # on each edge device
+pip install -e ".[server]"
+crowdsafe serve --venue my_venue.json --host 0.0.0.0     # set CROWDSAFE_TOKEN to require a password
 ```
+
+**On each camera device (a laptop or mini-PC next to the CCTV recorder):**
+
+```bash
+pip install -e ".[vision,onnx]"
+crowdsafe model fetch                                    # once: 86 MB density model, checksum verified
+crowdsafe check --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000
+crowdsafe edge  --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000
+```
+
+1. `cam1.json` maps the camera's picture to the ground in metres, once per camera. See
+   [docs/vision.md](docs/vision.md#1-calibrate-each-camera-once).
+2. **Run `crowdsafe check` the day before the event.** It tests the camera, the calibration, the model, this
+   device's speed and the connection to the control room. Every problem comes with a fix in plain words.
+   It also catches the most common silent mistake: a zone name that doesn't match the venue file.
+3. `crowdsafe edge` measures the device's speed. On a slow device it reports less often and says so, instead
+   of quietly falling behind. It never shrinks the picture to go faster, because that undercounts dense crowds.
+4. No internet at the venue? Run `crowdsafe model fetch` anywhere and copy the `models` folder it prints
+   (`crowdsafe model list`) to the device.
 
 Any sensor can post to the API:
 
@@ -133,7 +151,7 @@ API docs: `http://localhost:8000/docs`.
 
 ```bash
 pip install -e ".[dev]"
-pytest              # 38 tests: physics, planning, fusion, alerts, CAP, end-to-end sims, API, vision
+pytest              # physics, planning, fusion, alerts, CAP, end-to-end sims, API, vision, setup tools
 node --test tests/js/*.test.mjs
 ruff check src tests
 docker compose up   # demo in a container
