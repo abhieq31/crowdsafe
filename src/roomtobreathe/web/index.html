@@ -12,10 +12,10 @@
     <div class="brand"><span class="logo" aria-hidden="true">◉</span> Room to Breathe</div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="live" aria-selected="true">Live command</button>
-      <button role="tab" data-tab="whatif">What if…</button>
-      <button role="tab" data-tab="photo">Photo count</button>
-      <button role="tab" data-tab="plan">Plan &amp; permit</button>
+      <button role="tab" data-tab="whatif">Plan an event</button>
+      <button role="tab" data-tab="photo">Count a crowd</button>
       <button role="tab" data-tab="count">Gate counter</button>
+      <button role="tab" data-tab="plan">Permit check</button>
     </nav>
     <button class="who" id="who" title="Operator name and access code">Sign in</button>
     <div class="conn" id="conn" title="Server connection">offline</div>
@@ -42,7 +42,7 @@
       <h2>Live command needs your own control room</h2>
       <p>Live monitoring runs on a computer at your venue, so camera numbers never travel over the internet.
         Set it up with the <a href="https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md">deployment guide</a>.
-        Everything else here works right now in this browser: <a href="#" data-goto="whatif">test your venue with What if…</a>,
+        Everything else here works right now in this browser: <a href="#" data-goto="whatif">check your event</a>,
         <a href="#" data-goto="photo">count a crowd photo</a>, plan capacity, or use the gate counter.</p>
     </section>
     <section class="statusbar">
@@ -98,29 +98,30 @@
   </main>
 
 
-  <!-- WHAT IF --------------------------------------------------------- -->
+  <!-- PLAN AN EVENT --------------------------------------------------- -->
   <main id="tab-whatif" class="tab">
-    <p class="lead">Before the event, find out where your venue fails, how much warning you get, and whether the
-      response plan works. This runs the same engine as the live control room on a simulated crowd.</p>
-    <div class="grid plan-grid">
-      <section class="card">
-        <h2>1 · Your venue</h2>
-        <div class="row">
-          <select id="wi-src" aria-label="Venue">
-            <option value="demo">Example: puja pandal</option>
-            <option value="custom">Describe my venue</option>
-            <option value="file">Load a venue file…</option>
-          </select>
-          <input type="file" id="wi-file" accept=".json,application/json" hidden>
-          <button id="wi-download" class="link" type="button">Download venue file</button>
+    <div class="flow">
+      <header class="hero">
+        <h1>Is your event safe?</h1>
+        <p>Show where it is and how many people are coming. Room to Breathe checks it the way a crowd-safety
+          expert would: capacity, arrival, a sudden surge and a full evacuation.</p>
+      </header>
+
+      <section class="card step">
+        <h2 class="step-h"><span class="num">1</span> Where is it?</h2>
+        <div class="choice" role="group" aria-label="How to describe the venue">
+          <button type="button" class="choice-btn" data-src="map"><b>Find it on the map</b><span>Trace it on satellite imagery</span></button>
+          <button type="button" class="choice-btn" data-src="sizes"><b>Type the sizes</b><span>Areas and gate widths</span></button>
+          <button type="button" class="choice-btn" data-src="demo"><b>Try an example</b><span>A festival pandal</span></button>
         </div>
+        <select id="wi-src" hidden aria-hidden="true">
+          <option value="demo">example</option><option value="custom">custom</option><option value="file">file</option>
+        </select>
+        <input type="file" id="wi-file" accept=".json,application/json" hidden>
         <div id="wi-builder" hidden>
-          <label class="small muted">Venue name <input id="wi-name" placeholder="e.g. Ram Navami Mela ground"></label>
-          <div class="btns"><button id="wi-map-open" type="button" class="primary">Draw it on a map</button>
-            <span class="small muted">or type the zones and gates below</span></div>
           <div id="wi-map-panel" hidden>
             <form id="wi-map-search" class="row">
-              <input id="wi-map-q" placeholder="Search a place, e.g. Maidan, Kolkata" aria-label="Search a place">
+              <input id="wi-map-q" class="grow" placeholder="Search the place, e.g. Maidan, Kolkata" aria-label="Search a place">
               <button>Search</button><button type="button" id="wi-locate" class="link">Where am I</button>
             </form>
             <div class="btns">
@@ -138,6 +139,7 @@
             <p class="small muted">A gate is a line across the opening at its narrowest point: its length is the width.
               Map searches go to OpenStreetMap; nothing else you draw leaves this device.</p>
           </div>
+          <label class="small muted name-row">Venue name <input id="wi-name" placeholder="e.g. Ram Navami Mela ground"></label>
           <h3>Zones <span class="small muted">— the areas people stand in</span></h3>
           <div id="wi-zones" class="rows"></div>
           <button id="wi-add-zone" type="button">+ Add zone</button>
@@ -147,10 +149,30 @@
           <p class="small muted">"From → To" is the direction people walk. A gate to <b>Outside</b> is an exit.
             Areas can be typed as 40 x 24 (metres).</p>
         </div>
-        <div id="wi-venue-out" class="out small"></div>
+        <div id="wi-venue-out" class="venue-out"></div>
+        <p class="small muted"><button type="button" class="link" id="wi-load">Open a venue file</button> ·
+          <button id="wi-download" class="link" type="button">Save this venue</button></p>
       </section>
-      <section class="card">
-        <h2>2 · What if…</h2>
+
+      <section class="card step">
+        <h2 class="step-h"><span class="num">2</span> How many people?</h2>
+        <form id="as-form" class="people-row">
+          <input name="attendance" type="number" min="1" inputmode="numeric" placeholder="e.g. 5000" class="big-input"
+            required aria-label="People expected">
+          <label class="arrive">arriving over
+            <select name="arrival_minutes" aria-label="Arriving over">
+              <option value="30">30 minutes</option><option value="60" selected>1 hour</option>
+              <option value="120">2 hours</option><option value="240">4 hours</option>
+            </select></label>
+          <button class="primary big" id="as-run">Check my event</button>
+        </form>
+        <div id="as-status" class="small muted" role="status"></div>
+      </section>
+
+      <section class="card verdict-card" id="as-result" hidden aria-live="polite"></section>
+
+      <details class="card advanced" id="wi-advanced">
+        <summary>Try your own scenario <span class="small muted">for planners: surges, blocked gates, evacuations</span></summary>
         <form id="wi-form" class="form two">
           <label>People coming <input name="attendance" type="number" min="1" value="9000" required></label>
           <label>Arriving over (minutes) <input name="arrival_minutes" type="number" min="1" value="45"></label>
@@ -164,12 +186,9 @@
           <div class="btns" style="align-self:end"><button class="primary" id="wi-run">Run what-if</button></div>
         </form>
         <div id="wi-status" class="small muted" role="status"></div>
-      </section>
+        <div id="wi-results" hidden><div id="wi-out"></div></div>
+      </details>
     </div>
-    <section class="card" id="wi-results" hidden>
-      <h2>3 · What happens</h2>
-      <div id="wi-out"></div>
-    </section>
   </main>
 
   <!-- PHOTO ----------------------------------------------------------- -->
@@ -303,7 +322,8 @@
 
   <footer class="foot small muted">
     Room to Breathe is decision support. A trained person decides. No face recognition, no individual tracking.
-    · <a href="https://github.com/abhieq31/roomtobreathe">Source (Apache-2.0)</a>
+    · <a href="https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md">Live monitoring at your venue</a>
+    · <a href="https://github.com/abhieq31/roomtobreathe">Open source (Apache-2.0)</a>
   </footer>
   <script type="module" src="js/app.js"></script>
 </body>

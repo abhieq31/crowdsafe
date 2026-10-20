@@ -81,9 +81,10 @@ counts feed the same alerts.
 
 ## 3. Before the event (one week ahead)
 
-**Start in the [web app](https://abhieq31.github.io/roomtobreathe/)** (nothing to install): describe your venue in
-*What if…*, test the crowd you expect plus a surge and an evacuation, and download the venue file. The steps
-below do the same on the command line.
+**Start in the [web app](https://abhieq31.github.io/roomtobreathe/)** (nothing to install): in *Plan an event*, find
+the venue on the map, trace it, enter the crowd you expect and press *Check my event*. Fix what it reports, then
+press *Save this venue* to get the venue file for the control room. The steps below do the same on the
+command line (`roomtobreathe assess my_venue.json --people 12000`).
 
 ### 3.1 Describe the venue
 

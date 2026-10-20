@@ -19,16 +19,20 @@ Room to Breathe helps an administrative body, from a village temple committee to
 
 ### ▶ [Open the web app](https://abhieq31.github.io/roomtobreathe/): nothing to install
 
-Works on any phone or computer browser:
+Works on any phone or computer browser. It asks two things and gives one answer:
 
-- **What if…** Find your venue on the map (satellite view, anywhere in the world), trace its zones and tap
-  across each gate: areas and gate widths are measured for you. Then test it: what happens if 12,000 people come, a
-  surge starts, a gate gets blocked, or everyone has to leave at once? See where it fails, how many minutes of
-  warning you get, and whether the response plan saves it. This runs the real Room to Breathe engine (the same
-  one the live control room uses) inside your browser.
-- **Photo count.** Count the people in a crowd photo and see how many there are per m², with the densest square
-  metre highlighted. The photo never leaves your device: the counting model runs in the browser.
-- **Plan & permit** (safe capacity, permit risk check) and a **gate counter** for volunteers.
+1. **Where is your event?** Find it on the map (satellite view, anywhere in the world), trace the area people
+   will stand in, and tap across each gate. Areas and gate widths are measured for you.
+2. **How many people are coming?**
+
+**Check my event** then says *Safe*, *Possible with precautions* or *Not safe*, with the reasons and what to
+change. It runs the checks a crowd-safety expert would: capacity with the largest exit blocked, crowding as
+people arrive, a sudden surge (with and without the response plan), and a full evacuation. The engine is the
+same one the live control room uses, running inside your browser.
+
+Also in the app: **Count a crowd** from a photo (people per m², the photo never leaves your device), a
+**Gate counter** for volunteers, and a **Permit check**. Planners can open *Try your own scenario* for
+surges, blocked gates and evacuations of their choosing. On the command line: `rtb assess venue.json --people 12000`.
 
 Live monitoring of real cameras runs on a computer at your venue: see [Use it at a real event](#use-it-at-a-real-event).
 

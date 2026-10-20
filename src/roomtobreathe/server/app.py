@@ -170,6 +170,17 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
             raise HTTPException(404, "no event record for that day")
         return list(event_log.read(day))
 
+    @app.post("/api/assess")
+    def assess(body: dict):
+        """Is this event safe for this many people? (roomtobreathe.assess). Never touches the live engine."""
+        from ..assess import assess_event
+
+        try:
+            return assess_event(body.get("venue") or engine.venue.to_dict(), int(body["attendance"]),
+                                float(body.get("arrival_minutes") or 60))
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(400, f"invalid request: {e}") from e
+
     @app.post("/api/whatif")
     def whatif(body: dict):
         """Run a what-if study (see roomtobreathe.whatif). Read-only: it never touches the live engine."""
