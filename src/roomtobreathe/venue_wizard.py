@@ -1,4 +1,4 @@
-"""``crowdsafe venue new``: describe a venue in plain questions and get a checked venue file.
+"""``roomtobreathe venue new``: describe a venue in plain questions and get a checked venue file.
 
 No map or drawing is needed: a zone is a name and an area (or length x width
 in metres), and a gate is a width between two zones. That is enough for the
@@ -180,5 +180,5 @@ def run_venue_new(out: str, ask: Ask = input, log: Callable[[str], None] = print
     summarise(venue, log)
     path.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     log(f"\nSaved {path}. Zone names for camera calibration files: {', '.join(z['id'] for z in d['zones'])}")
-    log(f"Start the control room with:  crowdsafe serve --venue {path} --host 0.0.0.0")
+    log(f"Start the control room with:  roomtobreathe serve --venue {path} --host 0.0.0.0")
     return 0

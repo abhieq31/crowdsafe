@@ -184,5 +184,5 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 
 
 def default_venue() -> Venue:
-    """The fictional demo pandal used by `crowdsafe demo` and the tests."""
+    """The fictional demo pandal used by `roomtobreathe demo` and the tests."""
     return Venue.load(DATA_DIR / "venues" / "pandal.json")

@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from crowdsafe.alerts import AlertManager, assess_zone
-from crowdsafe.cap import CAP_NS, alert_to_cap
-from crowdsafe.engine import Engine
-from crowdsafe.physics import (
+from roomtobreathe.alerts import AlertManager, assess_zone
+from roomtobreathe.cap import CAP_NS, alert_to_cap
+from roomtobreathe.engine import Engine
+from roomtobreathe.physics import (
     DensityThresholds,
     Level,
     crowd_pressure,
@@ -18,10 +18,10 @@ from crowdsafe.physics import (
     time_to_critical,
     weidmann_speed,
 )
-from crowdsafe.planning import EventProfile, Exit, assess_risk, capacity_for_venue, compute_capacity
-from crowdsafe.playbooks import default_playbook
-from crowdsafe.venue import Venue, default_venue, polygon_area
-from crowdsafe.zones import Observation, ZoneEstimator
+from roomtobreathe.planning import EventProfile, Exit, assess_risk, capacity_for_venue, compute_capacity
+from roomtobreathe.playbooks import default_playbook
+from roomtobreathe.venue import Venue, default_venue, polygon_area
+from roomtobreathe.zones import Observation, ZoneEstimator
 
 VECTORS = json.loads((Path(__file__).parent / "vectors" / "planning.json").read_text())
 
@@ -177,7 +177,7 @@ def test_trigger_escalates_and_adds_rumour_message():
 
 
 def test_gate_selectors_walk_the_venue_graph():
-    from crowdsafe.playbooks import _gates
+    from roomtobreathe.playbooks import _gates
     v = default_venue()
     ids = lambda sel: sorted(g.id for g in _gates(v, "hall", sel))  # noqa: E731
     assert ids("inflow") == ["G3"]
@@ -250,8 +250,8 @@ def test_steady_scenario_has_no_false_alarms():
 
 
 def test_device_clock_ahead_cannot_hide_a_dead_camera():
-    from crowdsafe.venue import default_venue
-    from crowdsafe.zones import Observation
+    from roomtobreathe.venue import default_venue
+    from roomtobreathe.zones import Observation
 
     e = Engine(default_venue())
     t = 1_000_000.0
@@ -262,7 +262,7 @@ def test_device_clock_ahead_cannot_hide_a_dead_camera():
 
 
 def test_sent_at_corrects_device_clock_but_keeps_backlog_age():
-    from crowdsafe.zones import server_time
+    from roomtobreathe.zones import server_time
 
     now, offset = 1_000_000.0, -300.0  # device clock 5 minutes slow
     sent_at = now + offset

@@ -1,4 +1,4 @@
-// Offline planning logic: a mirror of src/crowdsafe/planning.py.
+// Offline planning logic: a mirror of src/roomtobreathe/planning.py.
 // Runs in the browser with no server, so a temple committee or district
 // officer can plan on a phone with no internet. Both implementations are
 // checked against tests/vectors/planning.json.
@@ -115,7 +115,7 @@ export function assessRisk(profile) {
     "Use lower planning densities and give vulnerable groups separate queues.");
   if (!p.live_monitoring && p.expected_attendance >= 10000)
     add("NO_MONITORING", 6, "No live density monitoring for a large crowd.",
-      "Deploy CrowdSafe live monitoring (Tier 1+) or at least gate counting (Tier 0).");
+      "Deploy Room to Breathe live monitoring (Tier 1+) or at least gate counting (Tier 0).");
 
   const score = Math.min(100, f.reduce((s, x) => s + x.points, 0));
   const tier = score >= 60 ? "SEVERE" : score >= 40 ? "HIGH" : score >= 20 ? "MODERATE" : "LOW";

@@ -1,6 +1,6 @@
 """HTTP + WebSocket API and static web app.
 
-Run:  crowdsafe serve --venue <venue.json>     (or)   crowdsafe demo
+Run:  roomtobreathe serve --venue <venue.json>     (or)   roomtobreathe demo
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
                log_dir: Optional[str] = None, allow_demo: bool = True) -> FastAPI:
     """``log_dir``: where the append-only event record is written (None = not written).
 
-    ``allow_demo=False`` (``crowdsafe serve``) refuses to start the simulator: on a live server one
+    ``allow_demo=False`` (``roomtobreathe serve``) refuses to start the simulator: on a live server one
     click would replace the real crowd picture with a simulated one.
     """
     event_log = None
@@ -83,12 +83,12 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
         try:
             event_log = EventLog(log_dir)
         except OSError as e:  # warnings must still run without the record, but say so loudly
-            print(f"[crowdsafe] WARNING: cannot write the event record in {log_dir} ({e}). "
+            print(f"[roomtobreathe] WARNING: cannot write the event record in {log_dir} ({e}). "
                   "Approved actions will NOT be saved to disk.")
     engine = Engine(venue, event_log=event_log)
     clients: Set[WebSocket] = set()
     cfg = {"speed": 5}
-    token = token if token is not None else os.environ.get("CROWDSAFE_TOKEN")
+    token = token if token is not None else os.environ.get("RTB_TOKEN")
     if event_log is not None:
         event_log.record("server_start", version=__version__, venue_id=venue.id, venue_name=venue.name,
                          auth_required=bool(token))
@@ -109,7 +109,7 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
                         except Exception:  # client went away mid-send
                             clients.discard(ws)
             except Exception as exc:  # never let the safety loop die silently
-                print(f"[crowdsafe] engine loop error: {exc!r}")
+                print(f"[roomtobreathe] engine loop error: {exc!r}")
             await asyncio.sleep(tick_s)
 
     @contextlib.asynccontextmanager
@@ -118,7 +118,7 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
         yield
         task.cancel()
 
-    app = FastAPI(title="CrowdSafe", version=__version__, lifespan=lifespan,
+    app = FastAPI(title="Room to Breathe", version=__version__, lifespan=lifespan,
                   description="Open-source crowd-crush early warning and planning API.")
     app.state.engine = engine
 
@@ -184,7 +184,7 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
     @app.post("/api/demo/start", dependencies=[Depends(require_token)])
     def demo_start(d: DemoIn):
         if not allow_demo:
-            raise HTTPException(409, "this is a live server: the demo is disabled. Run  crowdsafe demo  elsewhere.")
+            raise HTTPException(409, "this is a live server: the demo is disabled. Run  roomtobreathe demo  elsewhere.")
         if d.scenario not in SCENARIOS:
             raise HTTPException(400, f"unknown scenario {d.scenario!r}")
         engine.start_demo(d.scenario)

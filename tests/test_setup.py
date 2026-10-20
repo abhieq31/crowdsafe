@@ -1,4 +1,4 @@
-"""`crowdsafe setup` and the saved per-device config. Uses a local stub server, never the internet."""
+"""`roomtobreathe setup` and the saved per-device config. Uses a local stub server, never the internet."""
 
 import json
 import os
@@ -12,8 +12,8 @@ cv2 = pytest.importorskip("cv2")
 from test_check import _calib, _server_routes, _video  # noqa: E402
 from test_config import TOKEN  # noqa: E402
 
-from crowdsafe import cli, config  # noqa: E402
-from crowdsafe.wizard import run_setup  # noqa: E402
+from roomtobreathe import cli, config  # noqa: E402
+from roomtobreathe.wizard import run_setup  # noqa: E402
 
 
 def _scripted(answers):
@@ -110,7 +110,7 @@ def test_check_uses_saved_setup_and_flags_override(tmp_path, home, stub_server, 
     assert "server accepts reports" in out
     assert posts[-1][1] == f"Bearer {TOKEN}"
     if "NOT READY" not in out:  # without onnxruntime the model step fails, which is fine here
-        assert out.rstrip().endswith("Start with:  crowdsafe edge")
+        assert out.rstrip().endswith("Start with:  roomtobreathe edge")
 
     cli.main(["check", "--server", "http://127.0.0.1:9", "--token", "other"])
     out, err = capsys.readouterr()
@@ -119,7 +119,7 @@ def test_check_uses_saved_setup_and_flags_override(tmp_path, home, stub_server, 
 
 
 def test_edge_merges_saved_setup_with_flags(tmp_path, home, monkeypatch):
-    import crowdsafe.vision.pipeline as pipeline
+    import roomtobreathe.vision.pipeline as pipeline
 
     calls = []
     monkeypatch.setattr(pipeline, "run_edge", lambda *a, **k: calls.append((a, k)) or 0)

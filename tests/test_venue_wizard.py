@@ -1,9 +1,9 @@
-"""`crowdsafe venue new` and `crowdsafe venue check`, driven by scripted answers."""
+"""`roomtobreathe venue new` and `roomtobreathe venue check`, driven by scripted answers."""
 
 import json
 
-from crowdsafe.venue import Venue
-from crowdsafe.venue_wizard import parse_area, run_venue_new, venue_problems
+from roomtobreathe.venue import Venue
+from roomtobreathe.venue_wizard import parse_area, run_venue_new, venue_problems
 
 MELA = ["Ram Navami Mela", "12000", "en, hi",
         "Approach road", "200 x 10", "1", "",

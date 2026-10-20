@@ -1,7 +1,7 @@
 name: Release
 # Push a tag like v0.2.0 to publish:
-#   - ghcr.io/abhieq31/crowdsafe       (control-room server)  linux/amd64 + linux/arm64
-#   - ghcr.io/abhieq31/crowdsafe-edge  (camera device, model included)
+#   - ghcr.io/abhieq31/roomtobreathe       (control-room server)  linux/amd64 + linux/arm64
+#   - ghcr.io/abhieq31/roomtobreathe-edge  (camera device, model included)
 #   - a GitHub release with the Python wheel, so  pip install <wheel URL>  works without git
 on:
   push:
@@ -17,9 +17,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: crowdsafe
+          - name: roomtobreathe
             file: docker/Dockerfile
-          - name: crowdsafe-edge
+          - name: roomtobreathe-edge
             file: docker/Dockerfile.edge
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +53,6 @@ jobs:
       - run: pip install build && python -m build
       - name: Check the version matches the tag
         run: test "v$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')" = "${{ github.ref_name }}"
-      - run: gh release create "${{ github.ref_name }}" dist/* --title "CrowdSafe ${{ github.ref_name }}" --notes-file docs/RELEASE_NOTES.md --verify-tag
+      - run: gh release create "${{ github.ref_name }}" dist/* --title "Room to Breathe ${{ github.ref_name }}" --notes-file docs/RELEASE_NOTES.md --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}

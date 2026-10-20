@@ -4,12 +4,12 @@ import hashlib
 
 import pytest
 
-from crowdsafe.vision import model_store
+from roomtobreathe.vision import model_store
 
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("CROWDSAFE_HOME", str(tmp_path))
+    monkeypatch.setenv("RTB_HOME", str(tmp_path))
     return tmp_path
 
 
@@ -56,5 +56,5 @@ def test_resolve_specs(home, tmp_path):
     assert model_store.resolve(str(own)) == str(own)
     with pytest.raises(model_store.FetchError, match="does not exist"):
         model_store.resolve(str(tmp_path / "missing.onnx"))
-    with pytest.raises(model_store.FetchError, match="crowdsafe model fetch sparse"):
+    with pytest.raises(model_store.FetchError, match="roomtobreathe model fetch sparse"):
         model_store.resolve("sparse", download=False)

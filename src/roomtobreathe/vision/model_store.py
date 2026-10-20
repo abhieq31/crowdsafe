@@ -1,6 +1,6 @@
 """Download and cache the pretrained density models. Standard library only.
 
-The ONNX files are published as assets of a CrowdSafe GitHub release, and
+The ONNX files are published as assets of a Room to Breathe GitHub release, and
 each one is checked against the SHA-256 pinned here before use. They are
 DM-Count (MIT) checkpoints exported with scripts/export_density_onnx.py. The
 accuracy is published in docs/vision.md.
@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 RELEASE_TAG = "models-v1"
-RELEASE_URL = f"https://github.com/abhieq31/crowdsafe/releases/download/{RELEASE_TAG}/"
+RELEASE_URL = f"https://github.com/abhieq31/roomtobreathe/releases/download/{RELEASE_TAG}/"
 
 
 @dataclass(frozen=True)
@@ -49,12 +49,12 @@ DEFAULT_MODEL = "dense"
 
 
 def models_dir() -> Path:
-    """Where models are cached: $CROWDSAFE_HOME/models, else the user's cache folder."""
-    if os.environ.get("CROWDSAFE_HOME"):
-        return Path(os.environ["CROWDSAFE_HOME"]) / "models"
+    """Where models are cached: $RTB_HOME/models, else the user's cache folder."""
+    if os.environ.get("RTB_HOME"):
+        return Path(os.environ["RTB_HOME"]) / "models"
     if sys.platform == "win32" and os.environ.get("LOCALAPPDATA"):
-        return Path(os.environ["LOCALAPPDATA"]) / "crowdsafe" / "models"
-    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "crowdsafe" / "models"
+        return Path(os.environ["LOCALAPPDATA"]) / "roomtobreathe" / "models"
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "roomtobreathe" / "models"
 
 
 def model_path(name: str) -> Path:
@@ -134,7 +134,7 @@ def resolve(spec: Optional[str], download: bool = True, log: Callable[[str], Non
         if is_installed(name):
             return str(model_path(name))
         if not download:
-            raise FetchError(f"The '{name}' model is not downloaded yet. Run:  crowdsafe model fetch {name}")
+            raise FetchError(f"The '{name}' model is not downloaded yet. Run:  roomtobreathe model fetch {name}")
         return str(fetch(name, log=log))
     p = Path(spec).expanduser()
     if not p.is_file():

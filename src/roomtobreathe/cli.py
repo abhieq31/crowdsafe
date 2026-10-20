@@ -1,15 +1,15 @@
 """Command-line interface.
 
-    crowdsafe demo                      # dashboard + simulated surge at http://localhost:8000
-    crowdsafe serve --venue v.json      # live mode: edge devices POST observations
-    crowdsafe venue new                 # describe the venue in plain questions -> venue.json
-    crowdsafe capacity --area 960 --exit 3 --exit 2.5:stairs
-    crowdsafe simulate --scenario pandal_surge [--respond]
-    crowdsafe model fetch               # download the default density model (once, checksum verified)
-    crowdsafe setup                     # once per camera device: questions, each answer tested, then saved
-    crowdsafe check                     # test the saved setup (flags override it)
-    crowdsafe edge                      # run the camera pipeline with the saved setup
-    crowdsafe edge --source rtsp://... --calibration cam.json --server http://...
+    roomtobreathe demo                      # dashboard + simulated surge at http://localhost:8000
+    roomtobreathe serve --venue v.json      # live mode: edge devices POST observations
+    roomtobreathe venue new                 # describe the venue in plain questions -> venue.json
+    roomtobreathe capacity --area 960 --exit 3 --exit 2.5:stairs
+    roomtobreathe simulate --scenario pandal_surge [--respond]
+    roomtobreathe model fetch               # download the default density model (once, checksum verified)
+    roomtobreathe setup                     # once per camera device: questions, each answer tested, then saved
+    roomtobreathe check                     # test the saved setup (flags override it)
+    roomtobreathe edge                      # run the camera pipeline with the saved setup
+    roomtobreathe edge --source rtsp://... --calibration cam.json --server http://...
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ def cmd_serve(a, demo: bool = False) -> int:
 
         from .server.app import create_app
     except ImportError:
-        print("Server extras are missing. Install them with:  pip install 'crowdsafe[server]'", file=sys.stderr)
+        print("Server extras are missing. Install them with:  pip install 'roomtobreathe[server]'", file=sys.stderr)
         return 1
     from .venue import Venue, default_venue
 
@@ -83,16 +83,16 @@ def cmd_serve(a, demo: bool = False) -> int:
         from .venue_wizard import venue_problems
 
         if not a.venue:
-            print("No --venue given, so the fictional demo venue is used. Create yours with:  crowdsafe venue new")
+            print("No --venue given, so the fictional demo venue is used. Create yours with:  roomtobreathe venue new")
         for prob in venue_problems(venue):
             print(f"  ! {prob}")
-    log_dir = a.log_dir or os.environ.get("CROWDSAFE_LOG_DIR") or (None if demo else "crowdsafe-logs")
+    log_dir = a.log_dir or os.environ.get("RTB_LOG_DIR") or (None if demo else "roomtobreathe-logs")
     app = create_app(venue, log_dir=log_dir, allow_demo=demo)
     if log_dir:
         print(f"Event record (alerts, approved actions): {os.path.abspath(log_dir)}")
     if demo:
         app.state.engine.start_demo(a.scenario)
-    print(f"CrowdSafe dashboard: http://{a.host}:{a.port}/")
+    print(f"Room to Breathe dashboard: http://{a.host}:{a.port}/")
     if a.host in ("0.0.0.0", "::"):
         ip = _lan_ip()
         if ip:
@@ -107,7 +107,7 @@ EDGE_DEFAULTS = {"server": "http://127.0.0.1:8000", "model": "auto", "every": 1.
 
 
 def _settings(a):
-    """Flags, else the setup saved by ``crowdsafe setup``, else defaults. None if the saved file is damaged."""
+    """Flags, else the setup saved by ``roomtobreathe setup``, else defaults. None if the saved file is damaged."""
     from . import config
 
     try:
@@ -138,13 +138,13 @@ def cmd_edge(a) -> int:
     if s is None:
         return 1
     if not s["source"] or not s["calibration"]:
-        print("No camera or calibration file given. Run  crowdsafe setup  once, or pass --source and "
+        print("No camera or calibration file given. Run  roomtobreathe setup  once, or pass --source and "
               "--calibration.", file=sys.stderr)
         return 2
     try:
         from .vision.pipeline import run_edge
     except ImportError as e:
-        print(f"Vision extras are missing ({e}). Install them with:  pip install 'crowdsafe[vision,onnx]'",
+        print(f"Vision extras are missing ({e}). Install them with:  pip install 'roomtobreathe[vision,onnx]'",
               file=sys.stderr)
         return 1
     from .vision import model_store
@@ -154,7 +154,7 @@ def cmd_edge(a) -> int:
     except ImportError:
         if (s["model"] or "auto").lower() != "hog":
             print("The model runtime is missing, so dense crowds cannot be counted. Install it with:\n"
-                  "  pip install 'crowdsafe[onnx]'\nor pass --model hog to test with the inaccurate fallback.",
+                  "  pip install 'roomtobreathe[onnx]'\nor pass --model hog to test with the inaccurate fallback.",
                   file=sys.stderr)
             return 1
     try:
@@ -173,7 +173,7 @@ def cmd_venue(a) -> int:
     if a.action == "new":
         return run_venue_new(a.file or "venue.json", force=a.force)
     if not a.file:
-        print("Give the venue file:  crowdsafe venue check my_venue.json", file=sys.stderr)
+        print("Give the venue file:  roomtobreathe venue check my_venue.json", file=sys.stderr)
         return 2
     try:
         venue = Venue.load(a.file)
@@ -191,7 +191,7 @@ def cmd_check(a) -> int:
     if s is None:
         return 1
     flags = any(getattr(a, k) is not None for k in ("source", "calibration", "server", "model", "every", "token"))
-    hint = "crowdsafe edge with the same options" if flags else "crowdsafe edge"
+    hint = "roomtobreathe edge with the same options" if flags else "roomtobreathe edge"
     return run_check(s["source"], s["calibration"], s["server"], model=s["model"], token=s["token"],
                      every_s=float(s["every"]), start_hint=hint)
 
@@ -223,7 +223,7 @@ def cmd_model(a) -> int:
 
 
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(prog="crowdsafe", description="Open-source crowd-crush prevention")
+    p = argparse.ArgumentParser(prog="roomtobreathe", description="Open-source crowd-crush prevention")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     c = sub.add_parser("capacity", help="safe capacity from area and exits")
@@ -246,12 +246,12 @@ def main(argv=None) -> int:
         sv.add_argument("--host", default="127.0.0.1")
         sv.add_argument("--port", type=int, default=8000)
         sv.add_argument("--scenario", default="pandal_surge")
-        sv.add_argument("--log-dir", help="folder for the event record (serve default: ./crowdsafe-logs)")
+        sv.add_argument("--log-dir", help="folder for the event record (serve default: ./roomtobreathe-logs)")
 
     model_help = ("density model: auto (default: the dense model, downloaded on first use), dense, sparse, "
                   "hog (inaccurate test fallback), or a path to your own .onnx")
     sub.add_parser("setup", help="answer a few questions once per camera device; edge and check then need no options")
-    saved = " (default: the answer saved by crowdsafe setup)"
+    saved = " (default: the answer saved by roomtobreathe setup)"
     for name in ("edge", "check"):
         is_edge = name == "edge"
         ed = sub.add_parser(name, help="run the camera pipeline on an edge device" if is_edge

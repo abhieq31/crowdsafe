@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CrowdSafe</title>
+  <title>Room to Breathe</title>
   <meta name="description" content="Open-source crowd-crush prevention: plan safe capacity, monitor density live, act early.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo" aria-hidden="true">◉</span> CrowdSafe</div>
+    <div class="brand"><span class="logo" aria-hidden="true">◉</span> Room to Breathe</div>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="live" aria-selected="true">Live command</button>
       <button role="tab" data-tab="plan">Plan &amp; permit</button>
@@ -25,7 +25,7 @@
       <p class="small" id="signin-why">Your name goes in the action log next to every action you approve.</p>
       <label>Your name <input id="signin-name" autocomplete="name" required maxlength="60"></label>
       <label>Access code <input id="signin-token" type="password" autocomplete="current-password">
-        <span class="small muted">The CROWDSAFE_TOKEN set on the server. Leave empty if none.</span></label>
+        <span class="small muted">The RTB_TOKEN set on the server. Leave empty if none.</span></label>
       <div class="actions">
         <button value="ok" class="primary">Sign in</button>
         <button value="cancel" formnovalidate>Cancel</button>
@@ -171,8 +171,8 @@
   </main>
 
   <footer class="foot small muted">
-    CrowdSafe is decision support. A trained person decides. No face recognition, no individual tracking.
-    · <a href="https://github.com/abhieq31/crowdsafe">Source (Apache-2.0)</a>
+    Room to Breathe is decision support. A trained person decides. No face recognition, no individual tracking.
+    · <a href="https://github.com/abhieq31/roomtobreathe">Source (Apache-2.0)</a>
   </footer>
   <script type="module" src="js/app.js"></script>
 </body>

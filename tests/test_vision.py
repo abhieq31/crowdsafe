@@ -3,9 +3,9 @@ import pytest
 np = pytest.importorskip("numpy")
 cv2 = pytest.importorskip("cv2")
 
-from crowdsafe.vision.calibration import Calibration  # noqa: E402
-from crowdsafe.vision.motion import MotionAnalyzer  # noqa: E402
-from crowdsafe.vision.pipeline import zone_observations  # noqa: E402
+from roomtobreathe.vision.calibration import Calibration  # noqa: E402
+from roomtobreathe.vision.motion import MotionAnalyzer  # noqa: E402
+from roomtobreathe.vision.pipeline import zone_observations  # noqa: E402
 
 # A top-down camera where 20 px = 1 m makes the expected numbers easy to check.
 CAL = dict(camera_id="cam-test",
@@ -57,14 +57,14 @@ def test_motion_measures_ground_speed():
 
 
 def test_report_interval_slows_down_instead_of_shrinking_the_model():
-    from crowdsafe.vision.pipeline import report_interval
+    from roomtobreathe.vision.pipeline import report_interval
 
     assert report_interval(0.3, 1.0) == 1.0  # fast device keeps the requested interval
     assert report_interval(4.0, 1.0) == pytest.approx(6.7)  # 4 s inference -> report every 6.7 s
 
 
 def test_sanitize_drops_impossible_values_but_keeps_the_rest():
-    from crowdsafe.vision.pipeline import sanitize
+    from roomtobreathe.vision.pipeline import sanitize
 
     o = sanitize({"zone_id": "z", "source": "c", "count": 50.0, "density": 45.0, "density_sigma": 6.0,
                   "mean_speed": 30.0, "velocity_variance": 9.0})
@@ -74,7 +74,7 @@ def test_sanitize_drops_impossible_values_but_keeps_the_rest():
 
 
 def test_post_drops_batches_the_server_will_never_accept(stub_server):
-    from crowdsafe.vision.pipeline import post
+    from roomtobreathe.vision.pipeline import post
 
     url, routes, _ = stub_server
     obs = [{"zone_id": "z", "source": "c", "count": 1.0}]
@@ -88,8 +88,8 @@ def test_post_drops_batches_the_server_will_never_accept(stub_server):
 
 
 def test_too_slow_devices_are_caught_before_zones_flicker_to_no_data():
-    from crowdsafe.vision.pipeline import report_interval
-    from crowdsafe.zones import STALE_AFTER_S
+    from roomtobreathe.vision.pipeline import report_interval
+    from roomtobreathe.zones import STALE_AFTER_S
 
     assert report_interval(8.0, 1.0) < STALE_AFTER_S  # 13.4 s: slow but every report lands in time
-    assert report_interval(9.5, 1.0) >= STALE_AFTER_S  # crowdsafe check fails this device
+    assert report_interval(9.5, 1.0) >= STALE_AFTER_S  # roomtobreathe check fails this device

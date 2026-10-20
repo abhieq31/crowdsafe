@@ -3,8 +3,8 @@ import { computeCapacity, assessRisk } from "./planning.js";
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("crowdsafe:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("crowdsafe:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
+  get(k, d) { try { const v = localStorage.getItem("roomtobreathe:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("roomtobreathe:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
 // ---------------------------------------------------------------- tabs
@@ -24,7 +24,7 @@ let online = false;
 const history = {}; // zone -> [density]
 const executed = new Set(); // alertId:actionIndex
 
-// Operator identity: the name goes into the action log, the access code is the server's CROWDSAFE_TOKEN.
+// Operator identity: the name goes into the action log, the access code is the server's RTB_TOKEN.
 const auth = { name: store.get("operator", ""), token: store.get("token", "") };
 function showWho() {
   $("#who").textContent = auth.name ? `Operator: ${auth.name}` : "Sign in";
@@ -126,7 +126,7 @@ $("#demo-stop").addEventListener("click", () => post("/api/demo/stop", {}));
 
 // ---------------------------------------------------------------- map
 let mapBounds = null;
-// A venue described by areas only (crowdsafe venue new) gets a schematic: one square per zone, area to
+// A venue described by areas only (roomtobreathe venue new) gets a schematic: one square per zone, area to
 // scale, placed in the order people walk in from outside. Positions are not real.
 function schematic(v) {
   const order = [], seen = new Set(["outside"]);

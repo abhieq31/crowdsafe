@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure the counting error of an ONNX density model on a public test split.
 
-Runs every image through ``crowdsafe.vision.density.OnnxDensityModel`` (the
+Runs every image through ``roomtobreathe.vision.density.OnnxDensityModel`` (the
 same code path the edge pipeline uses), then reports MAE, RMSE and error
 bucketed by the true head count.
 
@@ -94,7 +94,7 @@ def main(argv=None) -> int:
 
     import cv2
 
-    from crowdsafe.vision.density import OnnxDensityModel
+    from roomtobreathe.vision.density import OnnxDensityModel
 
     items = load_items(args.format, args.data)
     if args.limit:

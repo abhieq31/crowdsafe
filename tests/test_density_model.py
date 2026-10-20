@@ -2,8 +2,8 @@
 
 Skipped unless an ONNX model exists. Export one with
 ``python scripts/export_density_onnx.py`` (writes models/dmcount_qnrf.onnx), or
-point ``CROWDSAFE_DENSITY_ONNX`` at another file. The sample-image test also
-needs the ShanghaiTech Part B test split: set ``CROWDSAFE_SHTECH_B`` to the
+point ``RTB_DENSITY_ONNX`` at another file. The sample-image test also
+needs the ShanghaiTech Part B test split: set ``RTB_SHTECH_B`` to the
 ``part_B/test_data`` folder (the one containing ``images/``).
 """
 
@@ -17,11 +17,11 @@ np = pytest.importorskip("numpy")
 cv2 = pytest.importorskip("cv2")
 pytest.importorskip("onnxruntime")
 
-from crowdsafe.vision.density import OnnxDensityModel  # noqa: E402
+from roomtobreathe.vision.density import OnnxDensityModel  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = Path(os.environ.get("CROWDSAFE_DENSITY_ONNX", ROOT / "models" / "dmcount_qnrf.onnx"))
-SHB = os.environ.get("CROWDSAFE_SHTECH_B")
+MODEL = Path(os.environ.get("RTB_DENSITY_ONNX", ROOT / "models" / "dmcount_qnrf.onnx"))
+SHB = os.environ.get("RTB_SHTECH_B")
 SAMPLES = json.loads((ROOT / "tests" / "vectors" / "density_samples.json").read_text())
 
 pytestmark = pytest.mark.skipif(not MODEL.exists(), reason=f"no density model at {MODEL}")
@@ -58,7 +58,7 @@ def test_count_survives_resize_to_frame(model):
     assert dm.sum() == pytest.approx(raw, rel=1e-4, abs=1e-4)
 
 
-@pytest.mark.skipif(not SHB, reason="set CROWDSAFE_SHTECH_B to run on ShanghaiTech Part B images")
+@pytest.mark.skipif(not SHB, reason="set RTB_SHTECH_B to run on ShanghaiTech Part B images")
 @pytest.mark.parametrize("sample", SAMPLES["images"], ids=lambda s: s["image"])
 def test_count_within_tolerance_on_shanghaitech_b(model, sample):
     frame = cv2.imread(str(Path(SHB) / "images" / sample["image"]))

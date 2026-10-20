@@ -1,4 +1,4 @@
-# CrowdSafe — Open-Source Crowd-Crush Prevention Platform
+# Room to Breathe — Open-Source Crowd-Crush Prevention Platform
 *Design plan v0.1 · working name, change freely*
 
 > **Mission:** No one should die because they went to pray, watch, celebrate or protest.
@@ -87,7 +87,7 @@ Run in priority order so it works **without** expensive hardware:
 ### Module 6: Learn
 - An automatic **after-action report**: a timeline of density, alerts, decisions and response times.
 - An **open, anonymised incident dataset** (with consent) so each event improves the models and thresholds for everyone. This is the global network effect.
-- **Replay** of historical disasters in simulation to validate the system: Love Parade 2010 has public video and reports, plus Itaewon 2022 and Hathras 2024. The headline proof is: *"Would CrowdSafe have alerted, and how many minutes early?"*
+- **Replay** of historical disasters in simulation to validate the system: Love Parade 2010 has public video and reports, plus Itaewon 2022 and Hathras 2024. The headline proof is: *"Would Room to Breathe have alerted, and how many minutes early?"*
 
 ---
 
