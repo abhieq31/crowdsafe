@@ -78,6 +78,7 @@ async function boot() {
   $("#venue-name").textContent = venue.name;
   const health = await api("/api/health").catch(() => ({}));
   if (health.auth_required && !auth.token) $("#who").classList.add("primary");
+  if (health.demo_allowed === false) $(".demo-controls").style.display = "none"; // live server: no simulator
   drawMap();
   const zsel = $("#cnt-zone");
   for (const z of venue.zones) zsel.insertAdjacentHTML("beforeend", `<option value="${esc(z.id)}">${esc(z.name)}</option>`);
@@ -125,10 +126,35 @@ $("#demo-stop").addEventListener("click", () => post("/api/demo/stop", {}));
 
 // ---------------------------------------------------------------- map
 let mapBounds = null;
+// A venue described by areas only (crowdsafe venue new) gets a schematic: one square per zone, area to
+// scale, placed in the order people walk in from outside. Positions are not real.
+function schematic(v) {
+  const order = [], seen = new Set(["outside"]);
+  let frontier = ["outside"];
+  while (frontier.length) {
+    const next = [];
+    for (const g of v.gates) {
+      for (const [a, b] of [[g.from, g.to], [g.to, g.from]]) {
+        if (frontier.includes(a) && !seen.has(b)) { seen.add(b); order.push(b); next.push(b); }
+      }
+    }
+    frontier = next;
+  }
+  for (const z of v.zones) if (!seen.has(z.id)) order.push(z.id);
+  let x = 0;
+  for (const id of order) {
+    const z = v.zones.find((q) => q.id === id);
+    const side = Math.sqrt(Math.max(1, z.area_m2 / (z.usable_fraction || 1)));
+    z.polygon = [[x, 0], [x + side, 0], [x + side, side], [x, side]];
+    x += side;
+  }
+  v.schematic = true;
+}
+
 function drawMap() {
   const svg = $("#map");
+  if (!venue.zones.some((z) => z.polygon.length)) schematic(venue);
   const pts = venue.zones.flatMap((z) => z.polygon);
-  if (!pts.length) { svg.innerHTML = `<text x="10" y="20">No geometry</text>`; return; }
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
   const pad = 6;
   mapBounds = { minx: Math.min(...xs) - pad, maxx: Math.max(...xs) + pad, miny: Math.min(...ys) - pad, maxy: Math.max(...ys) + pad };
@@ -154,6 +180,10 @@ function drawMap() {
     const [a, b] = seg.map(P);
     html += `<line class="gate ${g.open ? "open" : "closed"}" data-gate="${esc(g.id)}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"><title>${esc(g.name)} (${g.width_m} m)</title></line>`;
     html += `<text class="glabel" x="${(a[0] + b[0]) / 2 + 1.2}" y="${(a[1] + b[1]) / 2 - 1}">${esc(g.id)}</text>`;
+  }
+  if (venue.schematic) {
+    html += `<text class="glabel" x="1" y="${h - 1}" style="font-size:${(w / 40).toFixed(2)}px">`
+      + "Schematic: areas to scale, positions not real</text>";
   }
   svg.innerHTML = html;
 }

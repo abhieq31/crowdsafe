@@ -107,3 +107,11 @@ def test_sent_at_is_accepted_by_the_api(client):
     client.app.state.engine.tick()
     hall = next(z for z in client.get("/api/state").json()["zones"] if z["zone_id"] == "hall")
     assert hall["stale"] is False  # device clock one hour slow, but the reading is fresh
+
+
+def test_live_server_refuses_to_start_the_demo():
+    with TestClient(create_app(default_venue(), token="", allow_demo=False)) as c:
+        assert c.get("/api/health").json()["demo_allowed"] is False
+        r = c.post("/api/demo/start", json={"scenario": "pandal_surge"})
+        assert r.status_code == 409 and "live server" in r.json()["detail"]
+        assert c.get("/api/state").json()["mode"] == "live"

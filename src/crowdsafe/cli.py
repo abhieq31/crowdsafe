@@ -87,7 +87,7 @@ def cmd_serve(a, demo: bool = False) -> int:
         for prob in venue_problems(venue):
             print(f"  ! {prob}")
     log_dir = a.log_dir or os.environ.get("CROWDSAFE_LOG_DIR") or (None if demo else "crowdsafe-logs")
-    app = create_app(venue, log_dir=log_dir)
+    app = create_app(venue, log_dir=log_dir, allow_demo=demo)
     if log_dir:
         print(f"Event record (alerts, approved actions): {os.path.abspath(log_dir)}")
     if demo:

@@ -17,6 +17,7 @@ from typing import List, Optional
 import cv2
 import numpy as np
 
+from ..zones import STALE_AFTER_S
 from .calibration import Calibration
 from .density import OnnxDensityModel, load_estimator
 from .motion import MotionAnalyzer
@@ -148,6 +149,10 @@ def run_edge(source: str, calibration: str, server: str, model: Optional[str] = 
         if every_s > requested_every:
             print(f"[edge] this device is too slow to report every {requested_every:g}s, so it will report "
                   f"every {every_s:g}s. Warnings arrive a little later; a GPU or a faster device fixes this.")
+        if every_s >= STALE_AFTER_S:
+            print(f"[edge] WARNING: reports every {every_s:g}s are slower than the control room's {STALE_AFTER_S:g}s "
+                  "no-data limit, so these zones will flicker to UNKNOWN (no data). "
+                  "Use a faster device or one with a GPU.")
     else:
         print("[edge] WARNING: no density model, using the HOG fallback. It badly undercounts above "
               "~1 person/m2 and must not be relied on for dense crowds. Run:  crowdsafe model fetch")

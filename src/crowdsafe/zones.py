@@ -17,6 +17,8 @@ from typing import Deque, Dict, List, Optional, Tuple
 from .physics import crowd_pressure, dominant_oscillation, time_to_critical
 from .venue import Zone
 
+#: A zone with no report for this long shows UNKNOWN (ranked like ORANGE), so a sensor must report faster.
+STALE_AFTER_S = 15.0
 DEFAULT_SIGMA = 0.6  # p/m2, used when a source reports no uncertainty
 
 
@@ -80,7 +82,7 @@ def server_time(ts: Optional[float], sent_at: Optional[float], now: float) -> Op
 
 
 class ZoneEstimator:
-    def __init__(self, zone: Zone, stale_after_s: float = 15.0, window_s: float = 120.0,
+    def __init__(self, zone: Zone, stale_after_s: float = STALE_AFTER_S, window_s: float = 120.0,
                  speed_dt: float = 1.0):
         self.zone = zone
         self.stale_after_s = stale_after_s

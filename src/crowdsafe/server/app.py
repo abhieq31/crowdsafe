@@ -72,9 +72,19 @@ class CapacityIn(BaseModel):
 
 
 def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
-               log_dir: Optional[str] = None) -> FastAPI:
-    """``log_dir``: where the append-only event record is written (None = not written)."""
-    event_log = EventLog(log_dir) if log_dir else None
+               log_dir: Optional[str] = None, allow_demo: bool = True) -> FastAPI:
+    """``log_dir``: where the append-only event record is written (None = not written).
+
+    ``allow_demo=False`` (``crowdsafe serve``) refuses to start the simulator: on a live server one
+    click would replace the real crowd picture with a simulated one.
+    """
+    event_log = None
+    if log_dir:
+        try:
+            event_log = EventLog(log_dir)
+        except OSError as e:  # warnings must still run without the record, but say so loudly
+            print(f"[crowdsafe] WARNING: cannot write the event record in {log_dir} ({e}). "
+                  "Approved actions will NOT be saved to disk.")
     engine = Engine(venue, event_log=event_log)
     clients: Set[WebSocket] = set()
     cfg = {"speed": 5}
@@ -114,7 +124,8 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "version": __version__, "mode": engine.state()["mode"], "auth_required": bool(token)}
+        return {"ok": True, "version": __version__, "mode": engine.state()["mode"], "auth_required": bool(token),
+                "demo_allowed": allow_demo}
 
     @app.get("/api/venue")
     def get_venue():
@@ -172,6 +183,8 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
 
     @app.post("/api/demo/start", dependencies=[Depends(require_token)])
     def demo_start(d: DemoIn):
+        if not allow_demo:
+            raise HTTPException(409, "this is a live server: the demo is disabled. Run  crowdsafe demo  elsewhere.")
         if d.scenario not in SCENARIOS:
             raise HTTPException(400, f"unknown scenario {d.scenario!r}")
         engine.start_demo(d.scenario)

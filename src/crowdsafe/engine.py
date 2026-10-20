@@ -13,12 +13,12 @@ from .alerts import Alert, AlertManager, assess_zone
 from .playbooks import Playbook, default_playbook
 from .sim import FlowSimulator, load_scenario
 from .venue import Venue
-from .zones import Observation, ZoneEstimator, server_time
+from .zones import STALE_AFTER_S, Observation, ZoneEstimator, server_time
 
 
 class Engine:
     def __init__(self, venue: Venue, playbook: Optional[Playbook] = None,
-                 stale_after_s: float = 15.0, cooldown_s: float = 60.0, event_log=None):
+                 stale_after_s: float = STALE_AFTER_S, cooldown_s: float = 60.0, event_log=None):
         self.venue = venue
         self.event_log = event_log  # crowdsafe.eventlog.EventLog, or None
         self.playbook = playbook or default_playbook()
