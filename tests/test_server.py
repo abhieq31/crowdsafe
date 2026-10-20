@@ -62,3 +62,56 @@ def test_demo_and_websocket(client):
         assert msg["mode"] == "demo" and len(msg["zones"]) == 4
     assert client.get("/").status_code == 200
     assert "planning.js" in client.get("/js/app.js").text
+
+
+def test_event_record_survives_restart_and_names_the_operator(tmp_path):
+    auth = {"Authorization": "Bearer s3cret"}
+    with TestClient(create_app(default_venue(), token="s3cret", log_dir=str(tmp_path))) as c:
+        assert c.get("/api/health").json()["auth_required"] is True
+        act = {"type": "close_gate", "gate": "G1"}
+        assert c.post("/api/actions", json={"action": act, "by": "Asha (DM office)"}).status_code == 401
+        assert c.post("/api/actions", json={"action": act, "by": "Asha (DM office)"}, headers=auth).status_code == 200
+        c.post("/api/observations", json=[{"zone_id": "hall", "source": "cam-1", "density": 6.2}], headers=auth)
+        c.app.state.engine.tick()
+        assert c.get("/api/log").status_code == 401
+    # A new server process (a restart) reads the same record.
+    with TestClient(create_app(default_venue(), token="s3cret", log_dir=str(tmp_path))) as c:
+        [day] = c.get("/api/log", headers=auth).json()["days"]
+        events = c.get(f"/api/log/{day}", headers=auth).json()
+    kinds = [e["event"] for e in events]
+    assert kinds.count("server_start") == 2
+    [action] = [e for e in events if e["event"] == "action"]
+    assert action["by"] == "Asha (DM office)" and action["action"]["gate"] == "G1"
+    assert any(e["event"] == "alert" and e["zone_id"] == "hall" and e["level"] == "RED" for e in events)
+
+
+def test_event_log_skips_a_line_cut_short_by_a_crash(tmp_path):
+    from crowdsafe.eventlog import EventLog
+
+    log = EventLog(tmp_path, fsync=False)
+    log.record("action", by="a")
+    with open(log.path_for(), "a", encoding="utf-8") as f:
+        f.write('{"event": "act')  # power cut mid-write
+    log.record("action", by="b")
+    [day] = log.days()
+    assert [e.get("by") for e in log.read(day)] == ["a", "b"]
+
+
+def test_sent_at_is_accepted_by_the_api(client):
+    import time
+
+    t = time.time()
+    r = client.post("/api/observations", json=[{"zone_id": "hall", "source": "cam-1", "density": 2.0,
+                                                "ts": t - 3600, "sent_at": t - 3600}])
+    assert r.json()["accepted"] == 1
+    client.app.state.engine.tick()
+    hall = next(z for z in client.get("/api/state").json()["zones"] if z["zone_id"] == "hall")
+    assert hall["stale"] is False  # device clock one hour slow, but the reading is fresh
+
+
+def test_live_server_refuses_to_start_the_demo():
+    with TestClient(create_app(default_venue(), token="", allow_demo=False)) as c:
+        assert c.get("/api/health").json()["demo_allowed"] is False
+        r = c.post("/api/demo/start", json={"scenario": "pandal_surge"})
+        assert r.status_code == 409 and "live server" in r.json()["detail"]
+        assert c.get("/api/state").json()["mode"] == "live"

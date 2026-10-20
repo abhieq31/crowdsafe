@@ -15,8 +15,24 @@
       <button role="tab" data-tab="plan">Plan &amp; permit</button>
       <button role="tab" data-tab="count">Gate counter</button>
     </nav>
+    <button class="who" id="who" title="Operator name and access code">Sign in</button>
     <div class="conn" id="conn" title="Server connection">offline</div>
   </header>
+
+  <dialog id="signin">
+    <form method="dialog" class="form">
+      <h2>Operator sign-in</h2>
+      <p class="small" id="signin-why">Your name goes in the action log next to every action you approve.</p>
+      <label>Your name <input id="signin-name" autocomplete="name" required maxlength="60"></label>
+      <label>Access code <input id="signin-token" type="password" autocomplete="current-password">
+        <span class="small muted">The CROWDSAFE_TOKEN set on the server. Leave empty if none.</span></label>
+      <div class="actions">
+        <button value="ok" class="primary">Sign in</button>
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="signout" formnovalidate class="link">Sign out</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- LIVE ------------------------------------------------------------ -->
   <main id="tab-live" class="tab active">

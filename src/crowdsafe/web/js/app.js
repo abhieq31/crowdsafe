@@ -24,8 +24,43 @@ let online = false;
 const history = {}; // zone -> [density]
 const executed = new Set(); // alertId:actionIndex
 
+// Operator identity: the name goes into the action log, the access code is the server's CROWDSAFE_TOKEN.
+const auth = { name: store.get("operator", ""), token: store.get("token", "") };
+function showWho() {
+  $("#who").textContent = auth.name ? `Operator: ${auth.name}` : "Sign in";
+  if (auth.token) $("#who").classList.remove("primary");
+}
+showWho();
+function signIn(why) {
+  const dlg = $("#signin");
+  if (dlg.open) return Promise.resolve(false);
+  $("#signin-why").textContent = why || "Your name goes in the action log next to every action you approve.";
+  $("#signin-name").value = auth.name;
+  $("#signin-token").value = auth.token;
+  return new Promise((resolve) => {
+    dlg.addEventListener("close", () => {
+      if (dlg.returnValue === "ok") {
+        auth.name = $("#signin-name").value.trim();
+        auth.token = $("#signin-token").value.trim();
+      } else if (dlg.returnValue === "signout") {
+        auth.name = ""; auth.token = "";
+      }
+      store.set("operator", auth.name); store.set("token", auth.token); showWho();
+      resolve(dlg.returnValue === "ok");
+    }, { once: true });
+    dlg.showModal();
+  });
+}
+$("#who").addEventListener("click", () => signIn());
+
 async function api(path, opts = {}) {
-  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const headers = { "Content-Type": "application/json" };
+  if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
+  const r = await fetch(path, { ...opts, headers });
+  if (r.status === 401 && opts.method === "POST" && !opts.retried
+      && await signIn("The server needs the access code before it accepts this. Ask the control-room lead.")) {
+    return api(path, { ...opts, retried: true });
+  }
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.headers.get("content-type")?.includes("json") ? r.json() : r.text();
 }
@@ -41,6 +76,9 @@ async function boot() {
     return;
   }
   $("#venue-name").textContent = venue.name;
+  const health = await api("/api/health").catch(() => ({}));
+  if (health.auth_required && !auth.token) $("#who").classList.add("primary");
+  if (health.demo_allowed === false) $(".demo-controls").style.display = "none"; // live server: no simulator
   drawMap();
   const zsel = $("#cnt-zone");
   for (const z of venue.zones) zsel.insertAdjacentHTML("beforeend", `<option value="${esc(z.id)}">${esc(z.name)}</option>`);
@@ -58,7 +96,7 @@ async function boot() {
     const b = e.target.closest("button[data-trigger]");
     if (!b) return;
     const active = b.getAttribute("aria-pressed") !== "true";
-    await post("/api/triggers", { name: b.dataset.trigger, active, zone_id: "*" });
+    await post("/api/triggers", { name: b.dataset.trigger, active, zone_id: "*", by: auth.name || null });
     b.setAttribute("aria-pressed", String(active));
   });
   connect();
@@ -88,10 +126,35 @@ $("#demo-stop").addEventListener("click", () => post("/api/demo/stop", {}));
 
 // ---------------------------------------------------------------- map
 let mapBounds = null;
+// A venue described by areas only (crowdsafe venue new) gets a schematic: one square per zone, area to
+// scale, placed in the order people walk in from outside. Positions are not real.
+function schematic(v) {
+  const order = [], seen = new Set(["outside"]);
+  let frontier = ["outside"];
+  while (frontier.length) {
+    const next = [];
+    for (const g of v.gates) {
+      for (const [a, b] of [[g.from, g.to], [g.to, g.from]]) {
+        if (frontier.includes(a) && !seen.has(b)) { seen.add(b); order.push(b); next.push(b); }
+      }
+    }
+    frontier = next;
+  }
+  for (const z of v.zones) if (!seen.has(z.id)) order.push(z.id);
+  let x = 0;
+  for (const id of order) {
+    const z = v.zones.find((q) => q.id === id);
+    const side = Math.sqrt(Math.max(1, z.area_m2 / (z.usable_fraction || 1)));
+    z.polygon = [[x, 0], [x + side, 0], [x + side, side], [x, side]];
+    x += side;
+  }
+  v.schematic = true;
+}
+
 function drawMap() {
   const svg = $("#map");
+  if (!venue.zones.some((z) => z.polygon.length)) schematic(venue);
   const pts = venue.zones.flatMap((z) => z.polygon);
-  if (!pts.length) { svg.innerHTML = `<text x="10" y="20">No geometry</text>`; return; }
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
   const pad = 6;
   mapBounds = { minx: Math.min(...xs) - pad, maxx: Math.max(...xs) + pad, miny: Math.min(...ys) - pad, maxy: Math.max(...ys) + pad };
@@ -117,6 +180,10 @@ function drawMap() {
     const [a, b] = seg.map(P);
     html += `<line class="gate ${g.open ? "open" : "closed"}" data-gate="${esc(g.id)}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"><title>${esc(g.name)} (${g.width_m} m)</title></line>`;
     html += `<text class="glabel" x="${(a[0] + b[0]) / 2 + 1.2}" y="${(a[1] + b[1]) / 2 - 1}">${esc(g.id)}</text>`;
+  }
+  if (venue.schematic) {
+    html += `<text class="glabel" x="1" y="${h - 1}" style="font-size:${(w / 40).toFixed(2)}px">`
+      + "Schematic: areas to scale, positions not real</text>";
   }
   svg.innerHTML = html;
 }
@@ -293,20 +360,30 @@ $("#alerts").addEventListener("click", async (e) => {
   const all = JSON.parse($("#alerts").dataset.alerts || "[]");
   const one = e.target.closest("button[data-exec]");
   const many = e.target.closest("button[data-exec-all]");
+  if ((one || many) && !auth.name && !(await signIn("Enter your name first: the action log records who approved each action."))) return;
   const run = async (alertId, i) => {
     const entry = all.find(([id]) => id === alertId);
-    if (!entry || executed.has(`${alertId}:${i}`)) return;
+    if (!entry || executed.has(`${alertId}:${i}`)) return true;
+    try {
+      await post("/api/actions", { action: entry[1][i], by: auth.name || "operator" });
+    } catch (err) {
+      // Never show an action as done when the server did not record it.
+      alert(`This action was NOT recorded (${err.message}). Carry it out by radio and try again.`);
+      return false;
+    }
     executed.add(`${alertId}:${i}`);
-    await post("/api/actions", { action: entry[1][i], by: "operator" });
+    return true;
   };
   if (one) {
     const [id, i] = one.dataset.exec.split(/:(?=\d+$)/);
     one.disabled = true;
-    await run(id, Number(i));
+    if (!(await run(id, Number(i)))) one.disabled = false;
   } else if (many) {
     many.disabled = true;
     const entry = all.find(([id]) => id === many.dataset.execAll);
-    for (let i = 0; i < (entry?.[1].length || 0); i++) await run(many.dataset.execAll, i);
+    let ok = true;
+    for (let i = 0; i < (entry?.[1].length || 0) && ok; i++) ok = await run(many.dataset.execAll, i);
+    if (!ok) many.disabled = false;
   }
 });
 

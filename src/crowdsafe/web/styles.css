@@ -181,3 +181,9 @@ fieldset.checks input { width: auto; }
   .tabs { order: 3; flex-basis: 100%; justify-content: space-between; }
   .tabs button { flex: 1; }
 }
+
+.who { font-size: 12px; padding: 3px 10px; border-radius: 99px; margin-left: auto; }
+dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink);
+  max-width: min(420px, calc(100vw - 32px)); padding: 16px; }
+dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.err { color: var(--red); font-weight: 600; }

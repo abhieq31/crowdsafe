@@ -17,6 +17,8 @@ from typing import Deque, Dict, List, Optional, Tuple
 from .physics import crowd_pressure, dominant_oscillation, time_to_critical
 from .venue import Zone
 
+#: A zone with no report for this long shows UNKNOWN (ranked like ORANGE), so a sensor must report faster.
+STALE_AFTER_S = 15.0
 DEFAULT_SIGMA = 0.6  # p/m2, used when a source reports no uncertainty
 
 
@@ -66,8 +68,21 @@ class ZoneState:
         return d
 
 
+def server_time(ts: Optional[float], sent_at: Optional[float], now: float) -> Optional[float]:
+    """Translate a sensor timestamp to server time using the sensor's clock at send time.
+
+    ``ts + (now - sent_at)`` removes any clock offset between the device and the server while
+    keeping the age of backlogged observations that were held during a network outage.
+    """
+    if ts is None:
+        return None
+    if sent_at is not None:
+        ts += now - sent_at
+    return min(ts, now)
+
+
 class ZoneEstimator:
-    def __init__(self, zone: Zone, stale_after_s: float = 15.0, window_s: float = 120.0,
+    def __init__(self, zone: Zone, stale_after_s: float = STALE_AFTER_S, window_s: float = 120.0,
                  speed_dt: float = 1.0):
         self.zone = zone
         self.stale_after_s = stale_after_s
@@ -77,8 +92,11 @@ class ZoneEstimator:
         self._density_hist: Deque[Tuple[float, float]] = deque()
         self._speed_hist: Deque[Tuple[float, float]] = deque()
 
-    def ingest(self, obs: Observation) -> None:
-        ts = obs.ts if obs.ts is not None else time.time()
+    def ingest(self, obs: Observation, now: Optional[float] = None) -> None:
+        now = time.time() if now is None else now
+        # Never accept a timestamp from the future: a sensor whose clock runs ahead would otherwise
+        # look fresh long after it died, hiding exactly the failure "stale" exists to show.
+        ts = min(obs.ts, now) if obs.ts is not None else now
         obs.ts = ts
         if obs.density is None and obs.count is not None and self.zone.usable_area > 0:
             obs.density = obs.count / self.zone.usable_area
