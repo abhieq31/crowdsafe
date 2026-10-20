@@ -63,7 +63,7 @@ def post(server: str, observations: List[dict], token: Optional[str] = None, tim
     """Send observations. Returns "ok", "retry" (network or server down: keep them) or "drop"."""
     req = urllib.request.Request(
         server.rstrip("/") + "/api/observations",
-        data=json.dumps(observations).encode(),
+        data=json.dumps([{**o, "sent_at": time.time()} for o in observations]).encode(),
         headers={"Content-Type": "application/json",
                  **({"Authorization": f"Bearer {token}"} if token else {})},
         method="POST",

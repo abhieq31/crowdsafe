@@ -247,3 +247,25 @@ def test_steady_scenario_has_no_false_alarms():
     e, peaks, _ = _run("steady", respond=False, minutes=20)
     assert max(peaks.values()) < 2.0
     assert not [a for a in e.alerts.history if a.level in ("ORANGE", "RED")]
+
+
+def test_device_clock_ahead_cannot_hide_a_dead_camera():
+    from crowdsafe.venue import default_venue
+    from crowdsafe.zones import Observation
+
+    e = Engine(default_venue())
+    t = 1_000_000.0
+    # A camera whose clock runs 10 minutes fast sends one report, then dies.
+    e.ingest([Observation("hall", "cam-1", ts=t + 600, density=2.0)], now=t)
+    assert not e.estimators["hall"].snapshot(t + 1).stale
+    assert e.estimators["hall"].snapshot(t + 20).stale  # stale after 15 s, not after 10 min
+
+
+def test_sent_at_corrects_device_clock_but_keeps_backlog_age():
+    from crowdsafe.zones import server_time
+
+    now, offset = 1_000_000.0, -300.0  # device clock 5 minutes slow
+    sent_at = now + offset
+    assert server_time(sent_at, sent_at, now) == now  # a fresh reading is fresh, not 5 minutes old
+    assert server_time(sent_at - 60, sent_at, now) == now - 60  # held 60 s in the backlog: 60 s old
+    assert server_time(None, sent_at, now) is None

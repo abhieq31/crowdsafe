@@ -2,6 +2,7 @@
 
     crowdsafe demo                      # dashboard + simulated surge at http://localhost:8000
     crowdsafe serve --venue v.json      # live mode: edge devices POST observations
+    crowdsafe venue new                 # describe the venue in plain questions -> venue.json
     crowdsafe capacity --area 960 --exit 3 --exit 2.5:stairs
     crowdsafe simulate --scenario pandal_surge [--respond]
     crowdsafe model fetch               # download the default density model (once, checksum verified)
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .planning import Exit, compute_capacity
@@ -77,10 +79,26 @@ def cmd_serve(a, demo: bool = False) -> int:
     from .venue import Venue, default_venue
 
     venue = Venue.load(a.venue) if a.venue else default_venue()
-    app = create_app(venue)
+    if not demo:
+        from .venue_wizard import venue_problems
+
+        if not a.venue:
+            print("No --venue given, so the fictional demo venue is used. Create yours with:  crowdsafe venue new")
+        for prob in venue_problems(venue):
+            print(f"  ! {prob}")
+    log_dir = a.log_dir or os.environ.get("CROWDSAFE_LOG_DIR") or (None if demo else "crowdsafe-logs")
+    app = create_app(venue, log_dir=log_dir)
+    if log_dir:
+        print(f"Event record (alerts, approved actions): {os.path.abspath(log_dir)}")
     if demo:
         app.state.engine.start_demo(a.scenario)
     print(f"CrowdSafe dashboard: http://{a.host}:{a.port}/")
+    if a.host in ("0.0.0.0", "::"):
+        ip = _lan_ip()
+        if ip:
+            print(f"On other devices (phones, camera devices) use:  http://{ip}:{a.port}/")
+    elif not demo:
+        print("Only this computer can connect. To let camera devices and phones in, add  --host 0.0.0.0")
     uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
     return 0
 
@@ -101,6 +119,18 @@ def _settings(a):
         print(f"Using the saved setup from {config.config_path()} (options you type override it)",
               file=sys.stderr)
     return config.merge(a, saved, EDGE_DEFAULTS)
+
+
+def _lan_ip():
+    """This computer's address on the local network (no packet is sent)."""
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return None
 
 
 def cmd_edge(a) -> int:
@@ -134,6 +164,24 @@ def cmd_edge(a) -> int:
         return 1
     return run_edge(s["source"], s["calibration"], s["server"], model=model, every_s=float(s["every"]),
                     token=s["token"], show=a.show, input_width=a.input_width or None)
+
+
+def cmd_venue(a) -> int:
+    from .venue import Venue
+    from .venue_wizard import run_venue_new, summarise
+
+    if a.action == "new":
+        return run_venue_new(a.file or "venue.json", force=a.force)
+    if not a.file:
+        print("Give the venue file:  crowdsafe venue check my_venue.json", file=sys.stderr)
+        return 2
+    try:
+        venue = Venue.load(a.file)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"Cannot read {a.file}: {e}", file=sys.stderr)
+        return 1
+    print(venue.name)
+    return 1 if summarise(venue) else 0
 
 
 def cmd_check(a) -> int:
@@ -198,6 +246,7 @@ def main(argv=None) -> int:
         sv.add_argument("--host", default="127.0.0.1")
         sv.add_argument("--port", type=int, default=8000)
         sv.add_argument("--scenario", default="pandal_surge")
+        sv.add_argument("--log-dir", help="folder for the event record (serve default: ./crowdsafe-logs)")
 
     model_help = ("density model: auto (default: the dense model, downloaded on first use), dense, sparse, "
                   "hog (inaccurate test fallback), or a path to your own .onnx")
@@ -218,6 +267,11 @@ def main(argv=None) -> int:
                             help="model input width in px (default 1024); smaller is faster but undercounts")
             ed.add_argument("--show", action="store_true", help="show a local debug window")
 
+    vn = sub.add_parser("venue", help="create a venue file by answering questions, or check one")
+    vn.add_argument("action", choices=["new", "check"])
+    vn.add_argument("file", nargs="?", help="venue JSON (new: default venue.json)")
+    vn.add_argument("--force", action="store_true", help="replace an existing file")
+
     m = sub.add_parser("model", help="download or list the density models")
     m.add_argument("action", choices=["fetch", "list"])
     m.add_argument("name", nargs="?", default="dense", choices=["dense", "sparse", "all"])
@@ -235,6 +289,8 @@ def main(argv=None) -> int:
         return cmd_check(a)
     if a.cmd == "model":
         return cmd_model(a)
+    if a.cmd == "venue":
+        return cmd_venue(a)
     if a.cmd == "setup":
         return cmd_setup(a)
     return 2
