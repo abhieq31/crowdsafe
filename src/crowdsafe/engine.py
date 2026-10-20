@@ -13,13 +13,14 @@ from .alerts import Alert, AlertManager, assess_zone
 from .playbooks import Playbook, default_playbook
 from .sim import FlowSimulator, load_scenario
 from .venue import Venue
-from .zones import Observation, ZoneEstimator
+from .zones import STALE_AFTER_S, Observation, ZoneEstimator, server_time
 
 
 class Engine:
     def __init__(self, venue: Venue, playbook: Optional[Playbook] = None,
-                 stale_after_s: float = 15.0, cooldown_s: float = 60.0):
+                 stale_after_s: float = STALE_AFTER_S, cooldown_s: float = 60.0, event_log=None):
         self.venue = venue
+        self.event_log = event_log  # crowdsafe.eventlog.EventLog, or None
         self.playbook = playbook or default_playbook()
         self.stale_after_s = stale_after_s
         self.cooldown_s = cooldown_s
@@ -36,18 +37,30 @@ class Engine:
         self.last: dict = {}
 
     # --- inputs ----------------------------------------------------------
-    def ingest(self, observations: List[Observation]) -> int:
+    def ingest(self, observations: List[Observation], sent_at: Optional[float] = None,
+               now: Optional[float] = None) -> int:
+        """Accept observations. ``sent_at`` is the sender's clock when it sent them (clock correction)."""
+        now = self.now() if now is None else now
         n = 0
         for o in observations:
             est = self.estimators.get(o.zone_id)
             if est is None:
                 continue
-            est.ingest(o)
+            o.ts = server_time(o.ts, sent_at, now)
+            est.ingest(o, now=now)
             n += 1
         return n
 
-    def set_trigger(self, name: str, active: bool, zone_id: str = "*") -> None:
+    def set_trigger(self, name: str, active: bool, zone_id: str = "*", by: Optional[str] = None) -> None:
         self.alerts.set_trigger(name, active, zone_id)
+        self._record("trigger", name=name, active=active, zone_id=zone_id, by=by)
+
+    def _record(self, kind: str, **data) -> None:
+        if self.event_log is not None:
+            try:
+                self.event_log.record(kind, **{"ts": self.now(), "mode": "demo" if self.sim else "live", **data})
+            except OSError as e:  # a full disk must not stop the warnings
+                print(f"[crowdsafe] could not write the event log: {e}")
 
     def execute(self, action: dict, by: str = "operator") -> dict:
         """Record an operator-approved action and apply it (to the simulator in demo mode).
@@ -62,10 +75,11 @@ class Engine:
         if self.sim is not None:
             result = self.sim.apply_action(action)
             for ch in self.sim.trigger_changes:
-                self.set_trigger(ch["name"], ch["active"], ch.get("zone", "*"))
+                self.set_trigger(ch["name"], ch["active"], ch.get("zone", "*"), by="simulator")
             self.sim.trigger_changes.clear()
         entry = {"ts": self.now(), "by": by, "action": action, "result": result}
         self.action_log.append(entry)
+        self._record("action", by=by, action=action, result=result)
         return entry
 
     # --- demo ------------------------------------------------------------
@@ -73,8 +87,10 @@ class Engine:
         self._reset()
         self.sim = FlowSimulator(self.venue, load_scenario(scenario))
         self.sim_start = time.time()
+        self._record("demo_start", scenario=scenario)
 
     def stop_demo(self) -> None:
+        self._record("demo_stop")
         self._reset()
 
     def now(self) -> float:
@@ -91,7 +107,7 @@ class Engine:
             if self.sim is not None:
                 self.sim.step()
                 for ch in self.sim.trigger_changes:
-                    self.set_trigger(ch["name"], ch["active"], ch.get("zone", "*"))
+                    self.set_trigger(ch["name"], ch["active"], ch.get("zone", "*"), by="simulator")
                 self.sim.trigger_changes.clear()
                 self.ingest(self.sim.observations(self.now()))
             new_alerts += self._evaluate()
@@ -101,6 +117,8 @@ class Engine:
         now = self.now()
         states = {zid: est.snapshot(now) for zid, est in self.estimators.items()}
         new = self.alerts.update(states, now)
+        for al in new:
+            self._record("alert", **al.to_dict())
         zones = []
         total = 0
         for zid, st in states.items():

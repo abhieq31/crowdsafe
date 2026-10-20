@@ -183,7 +183,14 @@ def _check_speed(c: Checker, path: str, frame, every_s: float) -> None:
 
     secs = est.seconds_per_frame(frame)
     every = report_interval(secs, every_s)
-    if every <= every_s:
+    from .zones import STALE_AFTER_S
+
+    if every >= STALE_AFTER_S:
+        c.add("FAIL", f"this device is too slow: {secs:.1f}s per frame, so it could only report every {every:g}s",
+              f"The control room shows a zone as UNKNOWN (no data) after {STALE_AFTER_S:g}s without a report,\n"
+              "so these zones would keep flickering. Use a faster computer, or one with a GPU (CUDA)\n"
+              "or an Apple chip (CoreML).")
+    elif every <= every_s:
         c.add("OK", f"this device keeps up: {secs:.2f}s per frame (reports every {every_s:g}s)")
     else:
         c.add("WARN", f"this device is slow: {secs:.1f}s per frame",

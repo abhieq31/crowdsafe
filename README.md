@@ -53,6 +53,26 @@ into the corridor behind it (9 p/m²). The default playbook now follows the crow
 
 ---
 
+## Use it at a real event
+
+**Read [docs/DEPLOY.md](docs/DEPLOY.md).** It walks a district office or organising committee through the
+whole event, from the physics that sets the time margin to the after-action record. The short version:
+
+| When | Step | Command |
+|---|---|---|
+| A week before | Describe the venue; get its safe capacity and structural warnings | `crowdsafe venue new my_venue.json` |
+| A week before | Calibrate each camera to the ground in metres | [vision.md §1](docs/vision.md#1-calibrate-each-camera-once) |
+| Day before | Start the control room (Docker or Python) | `docker compose up -d` or `crowdsafe serve --venue my_venue.json --host 0.0.0.0` |
+| Day before | Set up and test each camera device | `crowdsafe setup`, then `crowdsafe check` (must say READY) |
+| Day before | Rehearse: unplug a camera and confirm its zone turns grey and alerts | |
+| On the day | Run each camera device; operators sign in by name | `crowdsafe edge` |
+| After | Keep the event record (every alert and approved action, with names) | `crowdsafe-logs/*.jsonl` |
+
+Ready-made images: `ghcr.io/abhieq31/crowdsafe` (control room) and `ghcr.io/abhieq31/crowdsafe-edge`
+(camera device, density model included, works offline).
+
+---
+
 ## Deployment tiers: same code, any budget
 
 | Tier | Who | Needs | Gets |
@@ -165,7 +185,7 @@ pip install -e ".[dev]"
 pytest              # physics, planning, fusion, alerts, CAP, end-to-end sims, API, vision, setup tools
 node --test tests/js/*.test.mjs
 ruff check src tests scripts
-docker compose up   # demo in a container
+docker compose up   # control room in a container (demo unless data/venue.json exists)
 ```
 
 ## Roadmap

@@ -85,3 +85,11 @@ def test_post_drops_batches_the_server_will_never_accept(stub_server):
     routes["/api/observations"] = (503, b"{}")
     assert post(url, obs) == "retry"  # server down: keep for store-and-forward
     assert post("http://127.0.0.1:9", obs, timeout=1) == "retry"
+
+
+def test_too_slow_devices_are_caught_before_zones_flicker_to_no_data():
+    from crowdsafe.vision.pipeline import report_interval
+    from crowdsafe.zones import STALE_AFTER_S
+
+    assert report_interval(8.0, 1.0) < STALE_AFTER_S  # 13.4 s: slow but every report lands in time
+    assert report_interval(9.5, 1.0) >= STALE_AFTER_S  # crowdsafe check fails this device

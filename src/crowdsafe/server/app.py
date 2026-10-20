@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 import json
 import os
+import re
 from pathlib import Path
 from typing import List, Optional, Set
 
@@ -21,6 +23,7 @@ from .. import __version__
 from ..alerts import TRIGGERS
 from ..cap import alert_to_cap
 from ..engine import Engine
+from ..eventlog import EventLog
 from ..planning import EventProfile, Exit, assess_risk, capacity_for_venue, compute_capacity
 from ..sim import SCENARIOS, load_scenario
 from ..venue import Venue, default_venue  # noqa: F401  (re-exported for convenience)
@@ -40,12 +43,15 @@ class ObservationIn(BaseModel):
     velocity_variance: Optional[float] = Field(None, ge=0)
     inflow_pps: Optional[float] = Field(None, ge=0)
     outflow_pps: Optional[float] = Field(None, ge=0)
+    #: the sender's clock when it sent this batch; lets the server correct for a wrong device clock
+    sent_at: Optional[float] = None
 
 
 class TriggerIn(BaseModel):
     name: str
     active: bool = True
     zone_id: str = "*"
+    by: Optional[str] = None
 
 
 class ActionIn(BaseModel):
@@ -65,14 +71,30 @@ class CapacityIn(BaseModel):
     evac_target_s: float = Field(480, gt=0)
 
 
-def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -> FastAPI:
-    engine = Engine(venue)
+def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
+               log_dir: Optional[str] = None, allow_demo: bool = True) -> FastAPI:
+    """``log_dir``: where the append-only event record is written (None = not written).
+
+    ``allow_demo=False`` (``crowdsafe serve``) refuses to start the simulator: on a live server one
+    click would replace the real crowd picture with a simulated one.
+    """
+    event_log = None
+    if log_dir:
+        try:
+            event_log = EventLog(log_dir)
+        except OSError as e:  # warnings must still run without the record, but say so loudly
+            print(f"[crowdsafe] WARNING: cannot write the event record in {log_dir} ({e}). "
+                  "Approved actions will NOT be saved to disk.")
+    engine = Engine(venue, event_log=event_log)
     clients: Set[WebSocket] = set()
     cfg = {"speed": 5}
     token = token if token is not None else os.environ.get("CROWDSAFE_TOKEN")
+    if event_log is not None:
+        event_log.record("server_start", version=__version__, venue_id=venue.id, venue_name=venue.name,
+                         auth_required=bool(token))
 
     def require_token(authorization: Optional[str] = Header(None)) -> None:
-        if token and authorization != f"Bearer {token}":
+        if token and not hmac.compare_digest((authorization or "").encode(), f"Bearer {token}".encode()):
             raise HTTPException(401, "missing or invalid bearer token")
 
     async def loop() -> None:
@@ -102,7 +124,8 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "version": __version__, "mode": engine.state()["mode"]}
+        return {"ok": True, "version": __version__, "mode": engine.state()["mode"], "auth_required": bool(token),
+                "demo_allowed": allow_demo}
 
     @app.get("/api/venue")
     def get_venue():
@@ -116,7 +139,8 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -
 
     @app.post("/api/observations", dependencies=[Depends(require_token)])
     def post_observations(obs: List[ObservationIn]):
-        n = engine.ingest([Observation.from_dict(o.model_dump()) for o in obs])
+        sent = [o.sent_at for o in obs if o.sent_at is not None]
+        n = engine.ingest([Observation.from_dict(o.model_dump()) for o in obs], sent_at=sent[0] if sent else None)
         return {"accepted": n, "rejected": len(obs) - n}
 
     @app.get("/api/triggers")
@@ -126,7 +150,7 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -
     @app.post("/api/triggers", dependencies=[Depends(require_token)])
     def set_trigger(t: TriggerIn):
         try:
-            engine.set_trigger(t.name, t.active, t.zone_id)
+            engine.set_trigger(t.name, t.active, t.zone_id, by=t.by)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         return {"ok": True}
@@ -134,6 +158,17 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -
     @app.post("/api/actions", dependencies=[Depends(require_token)])
     def execute_action(a: ActionIn):
         return engine.execute(a.action, by=a.by)
+
+    @app.get("/api/log", dependencies=[Depends(require_token)])
+    def log_days():
+        """Days for which an event record exists (UTC dates)."""
+        return {"enabled": event_log is not None, "days": event_log.days() if event_log else []}
+
+    @app.get("/api/log/{day}", dependencies=[Depends(require_token)])
+    def log_day(day: str):
+        if event_log is None or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            raise HTTPException(404, "no event record for that day")
+        return list(event_log.read(day))
 
     @app.get("/api/alerts/{alert_id}/cap")
     def alert_cap(alert_id: str):
@@ -148,6 +183,8 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -
 
     @app.post("/api/demo/start", dependencies=[Depends(require_token)])
     def demo_start(d: DemoIn):
+        if not allow_demo:
+            raise HTTPException(409, "this is a live server: the demo is disabled. Run  crowdsafe demo  elsewhere.")
         if d.scenario not in SCENARIOS:
             raise HTTPException(400, f"unknown scenario {d.scenario!r}")
         engine.start_demo(d.scenario)
