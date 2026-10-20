@@ -26,6 +26,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; } /* hidden always wins over component display rules */
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Bengali", "Noto Sans Devanagari", sans-serif;
@@ -221,3 +222,11 @@ h3 { font-size: 14px; margin: 14px 0 6px; }
   .tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .tabs button { white-space: nowrap; flex: 0 0 auto; }
 }
+.wi-map { height: 420px; border-radius: 8px; margin: 8px 0; border: 1px solid var(--line); }
+@media (max-width: 600px) { .wi-map { height: 340px; } }
+.wi-map.drawing, .wi-map.drawing .leaflet-interactive { cursor: crosshair; }
+.wi-map .vertex { background: #fff; border: 2px solid #2456d6; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.3); }
+.wi-map img { max-width: none; } /* page-wide image rules must not resize map tiles */
+.map-label { background: rgba(0,0,0,.6); color: #fff; border: 0; box-shadow: none; font-weight: 600; }
+.map-label::before { display: none; }
+html { scroll-padding-top: 70px; } /* scrolled-to elements clear the sticky header */

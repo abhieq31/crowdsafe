@@ -21,7 +21,8 @@ Room to Breathe helps an administrative body, from a village temple committee to
 
 Works on any phone or computer browser:
 
-- **What if…** Describe your venue (zones and gate widths) and test it: what happens if 12,000 people come, a
+- **What if…** Find your venue on the map (satellite view, anywhere in the world), trace its zones and tap
+  across each gate: areas and gate widths are measured for you. Then test it: what happens if 12,000 people come, a
   surge starts, a gate gets blocked, or everyone has to leave at once? See where it fails, how many minutes of
   warning you get, and whether the response plan saves it. This runs the real Room to Breathe engine (the same
   one the live control room uses) inside your browser.

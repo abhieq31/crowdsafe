@@ -116,6 +116,28 @@
         </div>
         <div id="wi-builder" hidden>
           <label class="small muted">Venue name <input id="wi-name" placeholder="e.g. Ram Navami Mela ground"></label>
+          <div class="btns"><button id="wi-map-open" type="button" class="primary">Draw it on a map</button>
+            <span class="small muted">or type the zones and gates below</span></div>
+          <div id="wi-map-panel" hidden>
+            <form id="wi-map-search" class="row">
+              <input id="wi-map-q" placeholder="Search a place, e.g. Maidan, Kolkata" aria-label="Search a place">
+              <button>Search</button><button type="button" id="wi-locate" class="link">Where am I</button>
+            </form>
+            <div class="btns">
+              <button id="wi-draw-zone" type="button">Draw a zone</button>
+              <button id="wi-draw-gate" type="button">Draw a gate</button>
+              <button id="wi-adjust" type="button" class="link">Adjust shapes</button>
+            </div>
+            <div class="btns" id="wi-zone-tools" hidden>
+              <button id="wi-zone-done" type="button" class="primary">Finish zone</button>
+              <button id="wi-zone-undo" type="button">Undo last corner</button>
+              <button id="wi-zone-cancel" type="button" class="link">Cancel</button>
+            </div>
+            <p class="small" id="wi-map-help" role="status"></p>
+            <div id="wi-map" class="wi-map" aria-label="Map of the venue"></div>
+            <p class="small muted">A gate is a line across the opening at its narrowest point: its length is the width.
+              Map searches go to OpenStreetMap; nothing else you draw leaves this device.</p>
+          </div>
           <h3>Zones <span class="small muted">— the areas people stand in</span></h3>
           <div id="wi-zones" class="rows"></div>
           <button id="wi-add-zone" type="button">+ Add zone</button>
