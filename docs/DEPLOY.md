@@ -81,10 +81,14 @@ counts feed the same alerts.
 
 ## 3. Before the event (one week ahead)
 
+**Start in the [web app](https://abhieq31.github.io/roomtobreathe/)** (nothing to install): describe your venue in
+*What if…*, test the crowd you expect plus a surge and an evacuation, and download the venue file. The steps
+below do the same on the command line.
+
 ### 3.1 Describe the venue
 
 ```bash
-pip install "roomtobreathe[server] @ https://github.com/abhieq31/roomtobreathe/releases/download/v0.2.0/roomtobreathe-0.2.0-py3-none-any.whl"
+pip install "roomtobreathe[server] @ https://github.com/abhieq31/roomtobreathe/releases/download/v0.3.0/roomtobreathe-0.3.0-py3-none-any.whl"
 roomtobreathe venue new my_venue.json
 ```
 
@@ -131,7 +135,7 @@ It prints the address other devices use, e.g. `http://192.168.1.20:8000/`. Open 
 ### Each camera device
 
 ```bash
-pip install "roomtobreathe[vision,onnx] @ https://github.com/abhieq31/roomtobreathe/releases/download/v0.2.0/roomtobreathe-0.2.0-py3-none-any.whl"
+pip install "roomtobreathe[vision,onnx] @ https://github.com/abhieq31/roomtobreathe/releases/download/v0.3.0/roomtobreathe-0.3.0-py3-none-any.whl"
 roomtobreathe setup        # camera address, calibration file, control-room address, access code, model
 roomtobreathe check        # must end with READY
 ```

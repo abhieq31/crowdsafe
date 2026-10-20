@@ -1,10 +1,12 @@
 import { computeCapacity, assessRisk } from "./planning.js";
+import { initPhoto } from "./photo.js";
+import { initWhatIf } from "./whatif.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("roomtobreathe:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("roomtobreathe:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
+  get(k, d) { try { const v = localStorage.getItem("rtb:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("rtb:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
 // ---------------------------------------------------------------- tabs
@@ -16,7 +18,13 @@ function showTab(name) {
   for (const t of document.querySelectorAll(".tab")) t.classList.toggle("active", t.id === "tab-" + name);
   store.set("tab", name);
 }
+const firstVisit = store.get("tab", null) === null;
 showTab(store.get("tab", "live"));
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-goto]");
+  if (a) { e.preventDefault(); showTab(a.dataset.goto); }
+});
+initPhoto();
 
 // ---------------------------------------------------------------- server
 let venue = null;
@@ -72,9 +80,17 @@ async function boot() {
     online = true;
   } catch {
     setConn(false);
-    $("#venue-name").textContent = "No server. Planning and counter work offline.";
+    $("#venue-name").textContent = "No control-room server: What if, Photo count, Plan and Gate counter work here.";
+    $("#live-offline").hidden = false;
+    for (const el of document.querySelectorAll("#tab-live > :not(#live-offline)")) el.style.display = "none";
+    $("#who").style.display = "none"; // nothing to sign in to without a control-room server
+    $("#conn").textContent = "web app";
+    $("#conn").title = "Running in this browser. Nothing you enter leaves this device.";
+    if (firstVisit) showTab("whatif");
+    initWhatIf({ online: false });
     return;
   }
+  initWhatIf({ online: true });
   $("#venue-name").textContent = venue.name;
   const health = await api("/api/health").catch(() => ({}));
   if (health.auth_required && !auth.token) $("#who").classList.add("primary");

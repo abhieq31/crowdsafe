@@ -20,6 +20,11 @@ markings. Write down their pixel positions and their real positions in metres:
 }
 ```
 
+**Mount cameras high and point them steeply down** (a mast, a balcony, a roof or a drone). The density model
+marks heads, while zones are drawn on the ground. Seen from eye level, a person's head is far above their feet
+in the picture, so people standing at the far edge of a zone are counted in the zone behind it, and zone
+densities come out wrong. From high up, head and feet nearly coincide.
+
 From this, Room to Breathe computes a homography. It turns pixel counts into **people per square metre** and
 pixel motion into **metres per second**. Without calibration, density numbers are meaningless.
 

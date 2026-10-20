@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roomtobreathe"
-version = "0.2.0"
+version = "0.3.0"
 description = "Open-source crowd-crush prevention: capacity planning, live density monitoring, early warning and response playbooks."
 readme = "README.md"
 license = "Apache-2.0"

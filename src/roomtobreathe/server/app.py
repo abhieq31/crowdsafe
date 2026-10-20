@@ -233,6 +233,16 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
         finally:
             clients.discard(ws)
 
+    @app.get("/models/{name}")
+    def model_file(name: str):
+        """The density model for the Photo count tab, if this server has downloaded it."""
+        from ..vision import model_store
+
+        for n, info in model_store.MODELS.items():
+            if info.filename == name and model_store.is_installed(n):
+                return FileResponse(model_store.model_path(n), media_type="application/octet-stream")
+        raise HTTPException(404, "model not downloaded on this server: run  roomtobreathe model fetch")
+
     @app.get("/")
     def index():
         return FileResponse(WEB_DIR / "index.html")

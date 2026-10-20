@@ -17,6 +17,20 @@ Room to Breathe helps an administrative body, from a village temple committee to
 > structural: too many people, too few exits, a surge trigger, and decisions that come too late.
 > All of that is measurable, and therefore preventable.
 
+### ▶ [Open the web app](https://abhieq31.github.io/roomtobreathe/): nothing to install
+
+Works on any phone or computer browser:
+
+- **What if…** Describe your venue (zones and gate widths) and test it: what happens if 12,000 people come, a
+  surge starts, a gate gets blocked, or everyone has to leave at once? See where it fails, how many minutes of
+  warning you get, and whether the response plan saves it. This runs the real Room to Breathe engine (the same
+  one the live control room uses) inside your browser.
+- **Photo count.** Count the people in a crowd photo and see how many there are per m², with the densest square
+  metre highlighted. The photo never leaves your device: the counting model runs in the browser.
+- **Plan & permit** (safe capacity, permit risk check) and a **gate counter** for volunteers.
+
+Live monitoring of real cameras runs on a computer at your venue: see [Use it at a real event](#use-it-at-a-real-event).
+
 <p align="center"><img src="docs/img/dashboard.jpg" alt="Room to Breathe live command dashboard" width="860"></p>
 
 ---

@@ -206,7 +206,7 @@ def describe(result: dict) -> List[str]:
             lead = (f", {s['warning_lead_min']:g} min after the RED alert" if s["warning_lead_min"] is not None
                     else "")
             out.append(f"Without action, {s['zone_name']} reaches critical density at minute "
-                       f"{s['critical_at_min']:g}{lead}.")
+                       f"{s['critical_at_min']:.0f}{lead}.")
     if a["reached_critical"]:
         if b["reached_critical"]:
             names = ", ".join(s["zone_name"] for s in b["summary"] if s["critical_at_min"] is not None)

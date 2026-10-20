@@ -1,0 +1,41 @@
+name: Web app
+# Publishes the zero-install web app to https://abhieq31.github.io/roomtobreathe/ on every push to main:
+# what-if studies (the Python engine, run in the browser with Pyodide), photo counting (DM-Count, run in the
+# browser), capacity planning and the gate counter. Nothing a visitor enters is sent anywhere.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the site (engine wheel, demo venue, checksum-verified model)
+        run: python scripts/build_site.py --out _site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
