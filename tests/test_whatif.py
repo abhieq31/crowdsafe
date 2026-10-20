@@ -68,3 +68,22 @@ def test_api_and_cli(tmp_path, capsys):
     p.write_text(json.dumps(PANDAL))
     assert main(["whatif", str(p), "--attendance", "2000", "--minutes", "20"]) == 0
     assert "peak p/m2" in capsys.readouterr().out
+
+
+def test_venue_drawn_on_a_map_keeps_its_real_outline():
+    from roomtobreathe.venue import Venue
+
+    # What the web app's map picker saves: an origin (lat, lon) and outlines in local metres around it.
+    d = {"id": "eden", "name": "Stadium", "origin": [22.5646, 88.3433],
+         "zones": [{"id": "bowl", "name": "Stadium bowl", "polygon": [[0, 0], [260, 0], [260, 270], [0, 270]],
+                    "usable_fraction": 1.0}],
+         "gates": [{"id": "G1", "name": "Main entry", "from": "outside", "to": "bowl", "width_m": 9.9},
+                   {"id": "G2", "name": "Exit 2", "from": "bowl", "to": "outside", "width_m": 7.7}]}
+    v = Venue.from_dict(d)
+    assert v.zones["bowl"].usable_area == 260 * 270
+    lat, lon = v.local_to_latlon((260, 270))
+    assert 22.566 < lat < 22.568 and 88.345 < lon < 88.346  # the far corner lands where it was drawn
+    again = Venue.from_dict(json.loads(json.dumps(v.to_dict())))
+    assert again.origin == v.origin and again.zones["bowl"].usable_area == v.zones["bowl"].usable_area
+    r = run_whatif(d, {"attendance": 30000, "arrival_minutes": 30, "minutes": 60, "evacuate_at_min": 45})
+    assert "did NOT clear" in describe(r)[0]  # 17.6 m of gates cannot empty a stadium in 15 minutes

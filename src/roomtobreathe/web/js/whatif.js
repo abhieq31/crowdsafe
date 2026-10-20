@@ -1,4 +1,6 @@
+import { round2, toLocal } from "./geo.js";
 import { polygonArea } from "./geometry.js";
+import { openMap, refreshMap } from "./venuemap.js";
 
 // What-if studies in the browser. The computation is the Python engine itself (roomtobreathe.whatif):
 // on a control-room server it runs there (POST /api/whatif); on a plain web host it runs in this browser
@@ -46,11 +48,12 @@ function zoneOptions(sel) {
   return opts.join("");
 }
 function renderBuilder() {
+  refreshMap();
   $("#wi-name").value = draft.name;
   $("#wi-zones").innerHTML = draft.zones.map((z, i) => `
     <div class="vrow" data-i="${i}">
       <input data-k="name" value="${esc(z.name)}" placeholder="Zone name" aria-label="Zone name">
-      <input data-k="area" value="${esc(z.area)}" placeholder="Area: 960 or 40 x 24" aria-label="Area in square metres">
+      <input data-k="area" value="${esc(z.area)}" placeholder="Area: 960 or 40 x 24" aria-label="Area in square metres"${z.ll?.length ? ' readonly title="Measured from the map"' : ""}>${z.ll?.length ? '<span class="small muted">m² from map</span>' : ""}
       <label class="small">usable % <input data-k="usable" type="number" min="10" max="100" value="${esc(z.usable)}"></label>
       <button type="button" class="link" data-del-zone="${i}" aria-label="Remove zone">✕</button>
     </div>`).join("");
@@ -63,6 +66,7 @@ function renderBuilder() {
       <label class="small">width m <input data-k="width" type="number" min="0.5" step="0.5" value="${esc(g.width)}"></label>
       <label class="small"><input data-k="stairs" type="checkbox"${g.stairs ? " checked" : ""}> steps</label>
       <label class="small"><input data-k="closed" type="checkbox"${g.closed ? " checked" : ""}> normally closed</label>
+      <button type="button" class="link" data-flip-gate="${i}" title="Swap the walking direction" aria-label="Swap direction">⇄</button>
       <button type="button" class="link" data-del-gate="${i}" aria-label="Remove gate">✕</button>
     </div>`).join("");
 }
@@ -73,7 +77,11 @@ function draftToVenue() {
     if (!z.name.trim()) problems.push(`Zone ${i + 1} needs a name.`);
     if (!area) problems.push(`Zone "${z.name || i + 1}" needs an area, e.g. 960 or 40 x 24.`);
     const id = slug(z.name || `zone ${i + 1}`, taken); taken.add(id); ids.push(id);
-    return { id, name: z.name || id, area_m2: area || 0, usable_fraction: Math.min(1, Math.max(0.1, Number(z.usable || 100) / 100)) };
+    const usable_fraction = Math.min(1, Math.max(0.1, Number(z.usable || 100) / 100));
+    if (draft.origin && z.ll?.length >= 3) { // drawn on the map: the engine measures the real outline
+      return { id, name: z.name || id, polygon: z.ll.map((p) => round2(toLocal(draft.origin, p))), usable_fraction };
+    }
+    return { id, name: z.name || id, area_m2: area || 0, usable_fraction };
   });
   const ref = (v) => (v === "outside" ? "outside" : ids[Number(v)]);
   const gates = draft.gates.map((g, i) => {
@@ -86,7 +94,9 @@ function draftToVenue() {
   });
   if (!zones.length) problems.push("Add at least one zone.");
   const name = draft.name.trim() || "My venue";
-  return { venue: { id: slug(name, new Set()), name, zones, gates }, problems };
+  const venue = { id: slug(name, new Set()), name, zones, gates };
+  if (draft.origin && draft.zones.some((z) => z.ll?.length)) venue.origin = draft.origin;
+  return { venue, problems };
 }
 function onBuilderInput(e) {
   const row = e.target.closest(".vrow");
@@ -273,6 +283,13 @@ export async function initWhatIf({ online }) {
     store.set("wi-draft", draft); renderBuilder(); refreshVenue();
   });
   $("#wi-gates").addEventListener("click", (e) => {
+    const f = e.target.closest("[data-flip-gate]");
+    if (f) {
+      const g = draft.gates[Number(f.dataset.flipGate)];
+      [g.from, g.to] = [g.to, g.from];
+      store.set("wi-draft", draft); renderBuilder(); refreshVenue();
+      return;
+    }
     const b = e.target.closest("[data-del-gate]");
     if (!b) return;
     draft.gates.splice(Number(b.dataset.delGate), 1);
@@ -288,6 +305,10 @@ export async function initWhatIf({ online }) {
     a.download = `${venue.id || "venue"}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  });
+  $("#wi-map-open").addEventListener("click", () => {
+    openMap(draft, () => { store.set("wi-draft", draft); renderBuilder(); refreshVenue(); })
+      .catch((err) => { $("#wi-map-help").textContent = `The map could not load: ${err.message}`; });
   });
   $("#wi-form").addEventListener("submit", run);
   renderBuilder();
