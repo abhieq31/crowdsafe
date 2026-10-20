@@ -112,9 +112,10 @@ flowchart LR
 
 ```bash
 pip install -e ".[server,vision,onnx]"
+pip install torch onnx && python scripts/export_density_onnx.py   # once: fetch DM-Count, verify checksum, export
 crowdsafe serve --venue my_venue.json                 # control-room server
 crowdsafe edge --source rtsp://cam1/stream \
-               --calibration cam1.json --model density.onnx \
+               --calibration cam1.json --model models/dmcount_qnrf.onnx \
                --server http://control-room:8000      # on each edge device
 ```
 

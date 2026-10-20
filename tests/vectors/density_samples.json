@@ -1,0 +1,12 @@
+{
+  "about": "ShanghaiTech Part B test images (not bundled) used by tests/test_density_model.py. For each true-count bucket the image is the one with the median relative error of DM-Count (QNRF weights) at native resolution on 2026-10-20, so these are typical images, not best cases. Counts are the official ground truth.",
+  "model": "models/dmcount_qnrf.onnx from scripts/export_density_onnx.py --weights QNRF",
+  "abs_tolerance": 10,
+  "rel_tolerance": 0.25,
+  "images": [
+    {"image": "IMG_178.jpg", "count": 41, "pred_2026_10_20": 38.8},
+    {"image": "IMG_230.jpg", "count": 93, "pred_2026_10_20": 88.0},
+    {"image": "IMG_129.jpg", "count": 149, "pred_2026_10_20": 137.3},
+    {"image": "IMG_182.jpg", "count": 253, "pred_2026_10_20": 206.2}
+  ]
+}

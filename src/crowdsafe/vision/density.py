@@ -36,19 +36,20 @@ class OnnxDensityModel:
     name = "onnx-density"
     relative_sigma = 0.15
 
-    def __init__(self, path: str, input_width: int = 1024):
+    def __init__(self, path: str, input_width: Optional[int] = 1024, providers: Optional[list] = None):
         import onnxruntime as ort  # optional dependency
 
-        providers = [p for p in ("CUDAExecutionProvider", "CoreMLExecutionProvider",
-                                 "CPUExecutionProvider") if p in ort.get_available_providers()]
+        providers = providers or [p for p in ("CUDAExecutionProvider", "CoreMLExecutionProvider",
+                                              "CPUExecutionProvider") if p in ort.get_available_providers()]
         self.sess = ort.InferenceSession(path, providers=providers)
         self.input_name = self.sess.get_inputs()[0].name
+        #: frames are resized to this width; None keeps the native width (rounded to /16)
         self.input_width = input_width
 
     def density_map(self, frame_bgr: np.ndarray) -> np.ndarray:
         h, w = frame_bgr.shape[:2]
-        scale = self.input_width / w
-        iw, ih = self.input_width, max(8, int(round(h * scale / 8)) * 8)
+        iw = self.input_width or max(16, int(round(w / 16)) * 16)
+        ih = max(16, int(round(h * iw / w / 16)) * 16)
         rgb = cv2.cvtColor(cv2.resize(frame_bgr, (iw, ih)), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
         x = ((rgb - _MEAN) / _STD).transpose(2, 0, 1)[None]
         out = self.sess.run(None, {self.input_name: x})[0][0, 0]
