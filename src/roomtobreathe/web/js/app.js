@@ -1,10 +1,12 @@
 import { computeCapacity, assessRisk } from "./planning.js";
+import { initPhoto } from "./photo.js";
+import { initWhatIf } from "./whatif.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("crowdsafe:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("crowdsafe:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
+  get(k, d) { try { const v = localStorage.getItem("rtb:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("rtb:" + k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
 // ---------------------------------------------------------------- tabs
@@ -16,7 +18,13 @@ function showTab(name) {
   for (const t of document.querySelectorAll(".tab")) t.classList.toggle("active", t.id === "tab-" + name);
   store.set("tab", name);
 }
+const firstVisit = store.get("tab", null) === null;
 showTab(store.get("tab", "live"));
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-goto]");
+  if (a) { e.preventDefault(); showTab(a.dataset.goto); }
+});
+initPhoto();
 
 // ---------------------------------------------------------------- server
 let venue = null;
@@ -24,7 +32,7 @@ let online = false;
 const history = {}; // zone -> [density]
 const executed = new Set(); // alertId:actionIndex
 
-// Operator identity: the name goes into the action log, the access code is the server's CROWDSAFE_TOKEN.
+// Operator identity: the name goes into the action log, the access code is the server's RTB_TOKEN.
 const auth = { name: store.get("operator", ""), token: store.get("token", "") };
 function showWho() {
   $("#who").textContent = auth.name ? `Operator: ${auth.name}` : "Sign in";
@@ -72,9 +80,17 @@ async function boot() {
     online = true;
   } catch {
     setConn(false);
-    $("#venue-name").textContent = "No server. Planning and counter work offline.";
+    $("#venue-name").textContent = "No control-room server: What if, Photo count, Plan and Gate counter work here.";
+    $("#live-offline").hidden = false;
+    for (const el of document.querySelectorAll("#tab-live > :not(#live-offline)")) el.style.display = "none";
+    $("#who").style.display = "none"; // nothing to sign in to without a control-room server
+    $("#conn").textContent = "web app";
+    $("#conn").title = "Running in this browser. Nothing you enter leaves this device.";
+    if (firstVisit) showTab("whatif");
+    initWhatIf({ online: false });
     return;
   }
+  initWhatIf({ online: true });
   $("#venue-name").textContent = venue.name;
   const health = await api("/api/health").catch(() => ({}));
   if (health.auth_required && !auth.token) $("#who").classList.add("primary");
@@ -126,7 +142,7 @@ $("#demo-stop").addEventListener("click", () => post("/api/demo/stop", {}));
 
 // ---------------------------------------------------------------- map
 let mapBounds = null;
-// A venue described by areas only (crowdsafe venue new) gets a schematic: one square per zone, area to
+// A venue described by areas only (roomtobreathe venue new) gets a schematic: one square per zone, area to
 // scale, placed in the order people walk in from outside. Positions are not real.
 function schematic(v) {
   const order = [], seen = new Set(["outside"]);
@@ -144,7 +160,7 @@ function schematic(v) {
   let x = 0;
   for (const id of order) {
     const z = v.zones.find((q) => q.id === id);
-    const side = Math.sqrt(Math.max(1, z.area_m2 / (z.usable_fraction || 1)));
+    const side = Math.sqrt(Math.max(1, z.area_m2));
     z.polygon = [[x, 0], [x + side, 0], [x + side, side], [x, side]];
     x += side;
   }

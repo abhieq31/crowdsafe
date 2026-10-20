@@ -19,6 +19,7 @@ from .venue import Zone
 
 #: A zone with no report for this long shows UNKNOWN (ranked like ORANGE), so a sensor must report faster.
 STALE_AFTER_S = 15.0
+OSC_EVERY_S = 5.0
 DEFAULT_SIGMA = 0.6  # p/m2, used when a source reports no uncertainty
 
 
@@ -91,6 +92,7 @@ class ZoneEstimator:
         self._latest: Dict[str, Tuple[float, Observation]] = {}
         self._density_hist: Deque[Tuple[float, float]] = deque()
         self._speed_hist: Deque[Tuple[float, float]] = deque()
+        self._osc_cache: Optional[Tuple[float, Optional[tuple]]] = None
 
     def ingest(self, obs: Observation, now: Optional[float] = None) -> None:
         now = time.time() if now is None else now
@@ -163,9 +165,12 @@ class ZoneEstimator:
 
         period = strength = None
         if len(self._speed_hist) >= 16:
-            osc = dominant_oscillation([s for _, s in self._speed_hist], self.speed_dt)
-            if osc:
-                period, strength = osc
+            # Stop-and-go waves have periods of 4-60 s, so re-detecting every few seconds loses nothing.
+            # It is the most expensive step, and this keeps the server and the browser what-if fast.
+            if self._osc_cache is None or abs(now - self._osc_cache[0]) >= OSC_EVERY_S:
+                self._osc_cache = (now, dominant_oscillation([s for _, s in self._speed_hist], self.speed_dt))
+            if self._osc_cache[1]:
+                period, strength = self._osc_cache[1]
 
         return ZoneState(
             zone_id=self.zone.id,

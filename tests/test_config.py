@@ -1,4 +1,4 @@
-"""The saved per-device config used by `crowdsafe setup`, `edge` and `check`. Standard library only."""
+"""The saved per-device config used by `roomtobreathe setup`, `edge` and `check`. Standard library only."""
 
 import os
 import stat
@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
-from crowdsafe import cli, config
-from crowdsafe.check import display_source
+from roomtobreathe import cli, config
+from roomtobreathe.check import display_source
 
 TOKEN = "s3cret-token-value"
 
@@ -15,13 +15,13 @@ TOKEN = "s3cret-token-value"
 # --- config file -------------------------------------------------------------
 
 @pytest.mark.parametrize("platform,env,expected", [
-    ("win32", {"APPDATA": "C:/Users/a/AppData/Roaming"}, "C:/Users/a/AppData/Roaming/crowdsafe"),
-    ("darwin", {}, "~/Library/Application Support/crowdsafe"),
-    ("linux", {"XDG_CONFIG_HOME": "/xdg"}, "/xdg/crowdsafe"),
-    ("linux", {}, "~/.config/crowdsafe"),
+    ("win32", {"APPDATA": "C:/Users/a/AppData/Roaming"}, "C:/Users/a/AppData/Roaming/roomtobreathe"),
+    ("darwin", {}, "~/Library/Application Support/roomtobreathe"),
+    ("linux", {"XDG_CONFIG_HOME": "/xdg"}, "/xdg/roomtobreathe"),
+    ("linux", {}, "~/.config/roomtobreathe"),
 ])
 def test_config_dir_per_platform(monkeypatch, platform, env, expected):
-    for k in ("CROWDSAFE_HOME", "APPDATA", "XDG_CONFIG_HOME"):
+    for k in ("RTB_HOME", "APPDATA", "XDG_CONFIG_HOME"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -43,7 +43,7 @@ def test_save_is_private_and_round_trips(home):
 def test_damaged_config_says_how_to_fix(home):
     home.mkdir()
     (home / "edge.json").write_text("{not json")
-    with pytest.raises(config.ConfigError, match="crowdsafe setup"):
+    with pytest.raises(config.ConfigError, match="roomtobreathe setup"):
         config.load()
 
 
@@ -55,4 +55,4 @@ def test_display_source_hides_camera_password():
 
 def test_edge_without_setup_or_flags_points_to_setup(home, capsys):
     assert cli.main(["edge"]) == 2
-    assert "crowdsafe setup" in capsys.readouterr().err
+    assert "roomtobreathe setup" in capsys.readouterr().err

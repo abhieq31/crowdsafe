@@ -20,7 +20,12 @@ markings. Write down their pixel positions and their real positions in metres:
 }
 ```
 
-From this, CrowdSafe computes a homography. It turns pixel counts into **people per square metre** and
+**Mount cameras high and point them steeply down** (a mast, a balcony, a roof or a drone). The density model
+marks heads, while zones are drawn on the ground. Seen from eye level, a person's head is far above their feet
+in the picture, so people standing at the far edge of a zone are counted in the zone behind it, and zone
+densities come out wrong. From high up, head and feet nearly coincide.
+
+From this, Room to Breathe computes a homography. It turns pixel counts into **people per square metre** and
 pixel motion into **metres per second**. Without calibration, density numbers are meaningless.
 
 ## 2. Choose a density model
@@ -36,16 +41,16 @@ map whose sum is the head count. Any model that follows it works with `OnnxDensi
 ### Default model: DM-Count
 
 Install it with one command. It downloads the ONNX file from this project's
-[`models-v1` release](https://github.com/abhieq31/crowdsafe/releases/tag/models-v1) and checks its SHA-256.
+[`models-v1` release](https://github.com/abhieq31/roomtobreathe/releases/tag/models-v1) and checks its SHA-256.
 No PyTorch is needed:
 
 ```bash
-crowdsafe model fetch            # "dense": DM-Count trained on UCF-QNRF (default, best on unseen cameras)
-crowdsafe model fetch sparse     # DM-Count trained on ShanghaiTech B, for streets below ~250 people per frame
-crowdsafe model list             # shows what is downloaded and where
+roomtobreathe model fetch            # "dense": DM-Count trained on UCF-QNRF (default, best on unseen cameras)
+roomtobreathe model fetch sparse     # DM-Count trained on ShanghaiTech B, for streets below ~250 people per frame
+roomtobreathe model list             # shows what is downloaded and where
 ```
 
-`crowdsafe edge` uses the dense model by default (`--model auto`) and downloads it on first use.
+`roomtobreathe edge` uses the dense model by default (`--model auto`) and downloads it on first use.
 `--model sparse`, `--model path/to/your.onnx` and `--model hog` (testing only) are also accepted.
 
 The release files were built with `scripts/export_density_onnx.py` (torch 2.14.1). A rebuild with another
@@ -145,7 +150,7 @@ QNRF checkpoint, same data, CPU:
 | 768 | 2.0 | 82.8 | -16% | 19.0 | -27% |
 | 512 | 0.7 | 105.4 | -34% | 30.4 | -39% |
 
-So `crowdsafe edge` **never lowers the input width on its own**. If the device is too slow for the
+So `roomtobreathe edge` **never lowers the input width on its own**. If the device is too slow for the
 requested interval, it reports less often instead (for example every 6.7 s on a 4 s/frame CPU) and says
 so. A crush builds up over minutes (the demo's RED alert comes 13 minutes before critical density), so a
 slower report is far safer than doubling or quadrupling the undercount in the densest scenes. `--input-width` is a manual override for people who
@@ -156,7 +161,7 @@ Reproduce:
 ```bash
 python scripts/benchmark_density.py --model models/dmcount_qnrf.onnx \
     --format shanghaitech --data ShanghaiTech/part_B/test_data --json shb.json
-CROWDSAFE_SHTECH_B=ShanghaiTech/part_B/test_data pytest tests/test_density_model.py
+RTB_SHTECH_B=ShanghaiTech/part_B/test_data pytest tests/test_density_model.py
 ```
 
 `--format jhu` reads JHU-Crowd++ splits, and `--format csv` reads an `image,count` CSV, for mirrors or

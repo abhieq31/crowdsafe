@@ -3,8 +3,8 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from crowdsafe.server.app import create_app  # noqa: E402
-from crowdsafe.venue import default_venue  # noqa: E402
+from roomtobreathe.server.app import create_app  # noqa: E402
+from roomtobreathe.venue import default_venue  # noqa: E402
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ def test_event_record_survives_restart_and_names_the_operator(tmp_path):
 
 
 def test_event_log_skips_a_line_cut_short_by_a_crash(tmp_path):
-    from crowdsafe.eventlog import EventLog
+    from roomtobreathe.eventlog import EventLog
 
     log = EventLog(tmp_path, fsync=False)
     log.record("action", by="a")

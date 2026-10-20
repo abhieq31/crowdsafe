@@ -1,8 +1,8 @@
 # Control room on one computer:  docker compose up -d
-# Put your venue file at ./data/venue.json (crowdsafe venue new). The event record goes to ./data/logs.
+# Put your venue file at ./data/venue.json (roomtobreathe venue new). The event record goes to ./data/logs.
 services:
-  crowdsafe:
-    image: ghcr.io/abhieq31/crowdsafe:latest
+  roomtobreathe:
+    image: ghcr.io/abhieq31/roomtobreathe:latest
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -12,5 +12,5 @@ services:
       - ./data:/data
     environment:
       # Access code for operators and camera devices. Change it before the event.
-      CROWDSAFE_TOKEN: ${CROWDSAFE_TOKEN:-}
+      RTB_TOKEN: ${RTB_TOKEN:-}
     restart: unless-stopped

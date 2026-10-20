@@ -2,7 +2,7 @@
 
 CAP is the international standard used by national alert systems, cell
 broadcast gateways and public alert aggregators. Emitting CAP means a
-CrowdSafe alert can reach existing warning infrastructure without custom
+Room to Breathe alert can reach existing warning infrastructure without custom
 integration.
 """
 
@@ -29,7 +29,7 @@ def _iso(ts: float) -> str:
         .isoformat().replace("+00:00", "-00:00")
 
 
-def alert_to_cap(alert: Alert, venue: Venue, sender: str = "crowdsafe@localhost",
+def alert_to_cap(alert: Alert, venue: Venue, sender: str = "roomtobreathe@localhost",
                  status: str = "Actual", instruction: Optional[str] = None) -> str:
     ET.register_namespace("", CAP_NS)
     q = lambda tag: f"{{{CAP_NS}}}{tag}"  # noqa: E731

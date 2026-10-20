@@ -1,8 +1,12 @@
-# CrowdSafe
+# Room to Breathe
 
 **Open-source crowd-crush prevention for any gathering: religious, entertainment, sports or political.**
 
-CrowdSafe helps an administrative body, from a village temple committee to a national disaster authority, to:
+People in a crowd crush die because they cannot breathe: the crowd presses on their chests until there is
+no room to take a breath. Everything in this project serves one goal: **keep room to breathe for every
+person, in every crowd.**
+
+Room to Breathe helps an administrative body, from a village temple committee to a national disaster authority, to:
 
 1. **Plan**: compute a venue's *safe* capacity and assess the event's risk before granting a permit.
 2. **See**: measure crowd density (people/m²) and motion live, from existing CCTV, phones or gate counters.
@@ -13,17 +17,31 @@ CrowdSafe helps an administrative body, from a village temple committee to a nat
 > structural: too many people, too few exits, a surge trigger, and decisions that come too late.
 > All of that is measurable, and therefore preventable.
 
-<p align="center"><img src="docs/img/dashboard.jpg" alt="CrowdSafe live command dashboard" width="860"></p>
+### ▶ [Open the web app](https://abhieq31.github.io/roomtobreathe/): nothing to install
+
+Works on any phone or computer browser:
+
+- **What if…** Describe your venue (zones and gate widths) and test it: what happens if 12,000 people come, a
+  surge starts, a gate gets blocked, or everyone has to leave at once? See where it fails, how many minutes of
+  warning you get, and whether the response plan saves it. This runs the real Room to Breathe engine (the same
+  one the live control room uses) inside your browser.
+- **Photo count.** Count the people in a crowd photo and see how many there are per m², with the densest square
+  metre highlighted. The photo never leaves your device: the counting model runs in the browser.
+- **Plan & permit** (safe capacity, permit risk check) and a **gate counter** for volunteers.
+
+Live monitoring of real cameras runs on a computer at your venue: see [Use it at a real event](#use-it-at-a-real-event).
+
+<p align="center"><img src="docs/img/dashboard.jpg" alt="Room to Breathe live command dashboard" width="860"></p>
 
 ---
 
 ## Try it in 60 seconds
 
 ```bash
-git clone https://github.com/abhieq31/crowdsafe && cd crowdsafe
+git clone https://github.com/abhieq31/roomtobreathe && cd roomtobreathe
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[server]"
-crowdsafe demo            # open http://127.0.0.1:8000
+roomtobreathe demo            # open http://127.0.0.1:8000
 ```
 
 The demo simulates an evening rush at a puja pandal. Free prasad starts in the hall, word spreads, and people stop on the exit steps.
@@ -32,14 +50,14 @@ Watch the hall go from green to red. Then press **Execute all** on the RED alert
 No browser? The same scenario runs headless:
 
 ```bash
-crowdsafe simulate                  # no action: the hall reaches 7.4 p/m² (crush conditions)
-crowdsafe simulate --respond        # playbook executed: every zone stays below 3.7 p/m²
-crowdsafe capacity --area 960 --exit 3 --exit 2.5
+roomtobreathe simulate                  # no action: the hall reaches 7.4 p/m² (crush conditions)
+roomtobreathe simulate --respond        # playbook executed: every zone stays below 3.7 p/m²
+roomtobreathe capacity --area 960 --exit 3 --exit 2.5
 ```
 
 ### What the demo shows (reproducible, see `tests/test_core.py`)
 
-| | Without response | With CrowdSafe playbook |
+| | Without response | With the Room to Breathe playbook |
 |---|---|---|
 | First warning (ORANGE) | t = 4.6 min | same |
 | RED alert | t = 17.0 min | same |
@@ -60,15 +78,15 @@ whole event, from the physics that sets the time margin to the after-action reco
 
 | When | Step | Command |
 |---|---|---|
-| A week before | Describe the venue; get its safe capacity and structural warnings | `crowdsafe venue new my_venue.json` |
+| A week before | Describe the venue; get its safe capacity and structural warnings | `roomtobreathe venue new my_venue.json` |
 | A week before | Calibrate each camera to the ground in metres | [vision.md §1](docs/vision.md#1-calibrate-each-camera-once) |
-| Day before | Start the control room (Docker or Python) | `docker compose up -d` or `crowdsafe serve --venue my_venue.json --host 0.0.0.0` |
-| Day before | Set up and test each camera device | `crowdsafe setup`, then `crowdsafe check` (must say READY) |
+| Day before | Start the control room (Docker or Python) | `docker compose up -d` or `roomtobreathe serve --venue my_venue.json --host 0.0.0.0` |
+| Day before | Set up and test each camera device | `roomtobreathe setup`, then `roomtobreathe check` (must say READY) |
 | Day before | Rehearse: unplug a camera and confirm its zone turns grey and alerts | |
-| On the day | Run each camera device; operators sign in by name | `crowdsafe edge` |
-| After | Keep the event record (every alert and approved action, with names) | `crowdsafe-logs/*.jsonl` |
+| On the day | Run each camera device; operators sign in by name | `roomtobreathe edge` |
+| After | Keep the event record (every alert and approved action, with names) | `roomtobreathe-logs/*.jsonl` |
 
-Ready-made images: `ghcr.io/abhieq31/crowdsafe` (control room) and `ghcr.io/abhieq31/crowdsafe-edge`
+Ready-made images: `ghcr.io/abhieq31/roomtobreathe` (control room) and `ghcr.io/abhieq31/roomtobreathe-edge`
 (camera device, density model included, works offline).
 
 ---
@@ -94,7 +112,7 @@ flowchart LR
     CAL[Homography<br/>calibration] --> DEN & FLOW
   end
   CNT[Gate counter app] --> API
-  DEN & FLOW -- numbers only --> API[CrowdSafe API]
+  DEN & FLOW -- numbers only --> API[Room to Breathe API]
   API --> FUSE[Sensor fusion<br/>inverse-variance, staleness]
   FUSE --> RISK[Risk engine<br/>density · pressure · time-to-critical<br/>stop-and-go · triggers]
   RISK --> ALERT[Alerts with hysteresis<br/>+ reasons]
@@ -134,38 +152,38 @@ flowchart LR
 
 ```bash
 pip install -e ".[server]"
-crowdsafe serve --venue my_venue.json --host 0.0.0.0     # set CROWDSAFE_TOKEN to require a password
+roomtobreathe serve --venue my_venue.json --host 0.0.0.0     # set RTB_TOKEN to require a password
 ```
 
 **On each camera device (a laptop or mini-PC next to the CCTV recorder):**
 
 ```bash
 pip install -e ".[vision,onnx]"
-crowdsafe setup     # once: camera, calibration file, control-room address, token, model
-crowdsafe check     # the day before the event
-crowdsafe edge      # on the day
+roomtobreathe setup     # once: camera, calibration file, control-room address, token, model
+roomtobreathe check     # the day before the event
+roomtobreathe edge      # on the day
 ```
 
-1. `crowdsafe setup` asks one question at a time in plain words and tests each answer straight away, so a
+1. `roomtobreathe setup` asks one question at a time in plain words and tests each answer straight away, so a
    wrong camera address or password shows up while you are still standing next to the camera. It offers to
    download the 86 MB density model (checksum verified). Run it again to change an answer: press Enter to
    keep the ones that are fine.
-2. The answers are saved on this device only, in your user's settings folder (`crowdsafe setup` prints
-   where: `~/.config/crowdsafe/edge.json` on Linux, `~/Library/Application Support/crowdsafe/` on macOS,
-   `%APPDATA%\crowdsafe\` on Windows). The access token is typed hidden, never printed, and the file can
-   only be read by your user account. Set `CROWDSAFE_HOME` to keep it somewhere else.
-3. Options you type always win over the saved answers, e.g. `crowdsafe edge --source 1` to try another camera,
+2. The answers are saved on this device only, in your user's settings folder (`roomtobreathe setup` prints
+   where: `~/.config/roomtobreathe/edge.json` on Linux, `~/Library/Application Support/roomtobreathe/` on macOS,
+   `%APPDATA%\roomtobreathe\` on Windows). The access token is typed hidden, never printed, and the file can
+   only be read by your user account. Set `RTB_HOME` to keep it somewhere else.
+3. Options you type always win over the saved answers, e.g. `roomtobreathe edge --source 1` to try another camera,
    or the full form without any setup:
-   `crowdsafe edge --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000`.
+   `roomtobreathe edge --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000`.
 4. The calibration file maps the camera's picture to the ground in metres, once per camera. See
    [docs/vision.md](docs/vision.md#1-calibrate-each-camera-once).
-5. **Run `crowdsafe check` the day before the event.** It tests the camera, the calibration, the model, this
+5. **Run `roomtobreathe check` the day before the event.** It tests the camera, the calibration, the model, this
    device's speed and the connection to the control room. Every problem comes with a fix in plain words.
    It also catches the most common silent mistake: a zone name that doesn't match the venue file.
-6. `crowdsafe edge` measures the device's speed. On a slow device it reports less often and says so, instead
+6. `roomtobreathe edge` measures the device's speed. On a slow device it reports less often and says so, instead
    of quietly falling behind. It never shrinks the picture to go faster, because that undercounts dense crowds.
-7. No internet at the venue? Run `crowdsafe model fetch` anywhere and copy the `models` folder it prints
-   (`crowdsafe model list`) to the device.
+7. No internet at the venue? Run `roomtobreathe model fetch` anywhere and copy the `models` folder it prints
+   (`roomtobreathe model list`) to the device.
 
 Any sensor can post to the API:
 
@@ -174,8 +192,8 @@ curl -X POST localhost:8000/api/observations -H 'Content-Type: application/json'
   -d '[{"zone_id":"hall","source":"turnstile-3","count":1450,"density_sigma":0.3}]'
 ```
 
-Venue format: [`src/crowdsafe/data/venues/pandal.json`](src/crowdsafe/data/venues/pandal.json).
-Playbook format: [`src/crowdsafe/data/default_playbook.json`](src/crowdsafe/data/default_playbook.json).
+Venue format: [`src/roomtobreathe/data/venues/pandal.json`](src/roomtobreathe/data/venues/pandal.json).
+Playbook format: [`src/roomtobreathe/data/default_playbook.json`](src/roomtobreathe/data/default_playbook.json).
 API docs: `http://localhost:8000/docs`.
 
 ## Development
@@ -215,4 +233,4 @@ management officers, and translators. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Apache-2.0. CrowdSafe is decision support. Trained people make the decisions and remain responsible for them.
+Apache-2.0. Room to Breathe is decision support. Trained people make the decisions and remain responsible for them.

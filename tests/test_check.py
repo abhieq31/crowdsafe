@@ -1,4 +1,4 @@
-"""`crowdsafe check`. Uses a local stub server, never the internet."""
+"""`roomtobreathe check`. Uses a local stub server, never the internet."""
 
 import json
 
@@ -7,7 +7,7 @@ import pytest
 np = pytest.importorskip("numpy")
 cv2 = pytest.importorskip("cv2")
 
-from crowdsafe.check import run_check  # noqa: E402
+from roomtobreathe.check import run_check  # noqa: E402
 
 
 def _calib(tmp_path, zone_id="hall"):

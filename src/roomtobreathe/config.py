@@ -1,12 +1,12 @@
-"""Saved per-device setup for ``crowdsafe edge`` and ``crowdsafe check``. Standard library only.
+"""Saved per-device setup for ``roomtobreathe edge`` and ``roomtobreathe check``. Standard library only.
 
-``crowdsafe setup`` writes it; command-line flags always override it. The file
+``roomtobreathe setup`` writes it; command-line flags always override it. The file
 holds the access token, so it is written readable by this user only (0600).
 
-    $CROWDSAFE_HOME/edge.json, if CROWDSAFE_HOME is set, else
-    Windows  %APPDATA%\\crowdsafe\\edge.json
-    macOS    ~/Library/Application Support/crowdsafe/edge.json
-    Linux    $XDG_CONFIG_HOME/crowdsafe/edge.json (default ~/.config)
+    $RTB_HOME/edge.json, if RTB_HOME is set, else
+    Windows  %APPDATA%\\roomtobreathe\\edge.json
+    macOS    ~/Library/Application Support/roomtobreathe/edge.json
+    Linux    $XDG_CONFIG_HOME/roomtobreathe/edge.json (default ~/.config)
 """
 
 from __future__ import annotations
@@ -25,13 +25,13 @@ class ConfigError(RuntimeError):
 
 
 def config_dir() -> Path:
-    if os.environ.get("CROWDSAFE_HOME"):
-        return Path(os.environ["CROWDSAFE_HOME"])
+    if os.environ.get("RTB_HOME"):
+        return Path(os.environ["RTB_HOME"])
     if sys.platform == "win32" and os.environ.get("APPDATA"):
-        return Path(os.environ["APPDATA"]) / "crowdsafe"
+        return Path(os.environ["APPDATA"]) / "roomtobreathe"
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "crowdsafe"
-    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "crowdsafe"
+        return Path.home() / "Library" / "Application Support" / "roomtobreathe"
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "roomtobreathe"
 
 
 def config_path() -> Path:
@@ -46,9 +46,9 @@ def load(path: Optional[Path] = None) -> Dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise ConfigError(f"The saved setup in {path} cannot be read ({e}). Run:  crowdsafe setup") from e
+        raise ConfigError(f"The saved setup in {path} cannot be read ({e}). Run:  roomtobreathe setup") from e
     if not isinstance(data, dict):
-        raise ConfigError(f"The saved setup in {path} is damaged. Run:  crowdsafe setup")
+        raise ConfigError(f"The saved setup in {path} is damaged. Run:  roomtobreathe setup")
     return {k: v for k, v in data.items() if k in KEYS and v not in (None, "")}
 
 

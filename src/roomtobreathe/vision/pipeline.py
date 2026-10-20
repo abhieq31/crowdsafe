@@ -135,7 +135,7 @@ def run_edge(source: str, calibration: str, server: str, model: Optional[str] = 
     ok, frame = cap.read() if cap.isOpened() else (False, None)
     if not ok:
         print(f"[edge] cannot read from camera {source!r}. Check the address, that the camera is on, "
-              "and that this device is on the same network. `crowdsafe check` tests this.")
+              "and that this device is on the same network. `roomtobreathe check` tests this.")
         return 1
     if isinstance(est, OnnxDensityModel):
         if input_width:
@@ -155,7 +155,7 @@ def run_edge(source: str, calibration: str, server: str, model: Optional[str] = 
                   "Use a faster device or one with a GPU.")
     else:
         print("[edge] WARNING: no density model, using the HOG fallback. It badly undercounts above "
-              "~1 person/m2 and must not be relied on for dense crowds. Run:  crowdsafe model fetch")
+              "~1 person/m2 and must not be relied on for dense crowds. Run:  roomtobreathe model fetch")
     print(f"[edge] {calib.camera_id}: estimator={est.name}, zones={list(calib.zones)}, every {every_s:g}s")
     backlog: List[dict] = []
     last = 0.0
@@ -188,7 +188,7 @@ def run_edge(source: str, calibration: str, server: str, model: Optional[str] = 
                 cv2.putText(vis, f"{o['zone_id']}: {o.get('density', 0):.1f}/m2", tuple(poly[0]),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             try:
-                cv2.imshow("crowdsafe-edge (local only)", vis)
+                cv2.imshow("roomtobreathe-edge (local only)", vis)
                 if cv2.waitKey(1) == 27:
                     break
             except cv2.error:

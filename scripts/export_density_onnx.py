@@ -20,7 +20,7 @@ Model and licences
 Weights are never committed to this repository. This script downloads them,
 checks the SHA-256 below, and refuses to continue on a mismatch.
 
-Usage (needs ``pip install torch onnx onnxruntime``; torch is NOT a CrowdSafe
+Usage (needs ``pip install torch onnx onnxruntime``; torch is NOT a Room to Breathe
 dependency, it is only needed once to export)::
 
     python scripts/export_density_onnx.py --weights QNRF --out models/dmcount_qnrf.onnx
@@ -101,7 +101,7 @@ def main(argv=None) -> int:
     ap.add_argument("--weights", choices=sorted(WEIGHTS), default="QNRF",
                     help="training set of the checkpoint: QNRF (dense, default), SHA (dense), SHB (sparse streets)")
     ap.add_argument("--out", type=Path, default=None, help="output .onnx (default models/dmcount_<weights>.onnx)")
-    ap.add_argument("--cache", type=Path, default=Path.home() / ".cache" / "crowdsafe",
+    ap.add_argument("--cache", type=Path, default=Path.home() / ".cache" / "roomtobreathe",
                     help="where downloaded checkpoints are kept")
     ap.add_argument("--opset", type=int, default=17)
     args = ap.parse_args(argv)
@@ -146,7 +146,7 @@ def main(argv=None) -> int:
     }
     out.with_suffix(".json").write_text(json.dumps(meta, indent=2) + "\n")
     print(f"wrote {out}  sha256 {digest}")
-    print(f"run:  crowdsafe edge --model {out} --source ... --calibration ...   (see docs/vision.md)")
+    print(f"run:  roomtobreathe edge --model {out} --source ... --calibration ...   (see docs/vision.md)")
     return 0
 
 

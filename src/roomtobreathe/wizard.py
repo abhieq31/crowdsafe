@@ -1,6 +1,6 @@
-"""``crowdsafe setup``: answer a few questions once, then run ``crowdsafe edge`` with no options.
+"""``roomtobreathe setup``: answer a few questions once, then run ``roomtobreathe edge`` with no options.
 
-Each answer is tested straight away with the same steps as ``crowdsafe check``.
+Each answer is tested straight away with the same steps as ``roomtobreathe check``.
 The answers are saved per device (see config.py). The access token is typed
 hidden, saved readable by this user only, and never printed.
 """
@@ -81,7 +81,7 @@ def _run(s: _Setup, path: Path) -> int:
     except config.ConfigError as e:
         log(f"{e}\nStarting again from empty answers.")
         saved = {}
-    log("CrowdSafe setup for this camera device")
+    log("Room to Breathe setup for this camera device")
     log(f"Your answers are tested as you go and saved in {path}")
     if saved:
         log("You set this device up before: press Enter to keep the answer shown in [brackets].")
@@ -90,7 +90,7 @@ def _run(s: _Setup, path: Path) -> int:
     c = Checker(log)
     has_ort = check_software(c)
     if has_ort is None:
-        log("\nInstall camera support first, then run  crowdsafe setup  again.")
+        log("\nInstall camera support first, then run  roomtobreathe setup  again.")
         return 1
     new: Dict[str, Any] = {"every": saved.get("every")}
 
@@ -117,10 +117,10 @@ def _run(s: _Setup, path: Path) -> int:
     log(f"  server       {new['server']}")
     log(f"  token        {'saved (hidden)' if new['token'] else 'none'}")
     if s.kept_failing:
-        log(f"\nKept although the test failed: {', '.join(s.kept_failing)}. Fix it, then run  crowdsafe check")
+        log(f"\nKept although the test failed: {', '.join(s.kept_failing)}. Fix it, then run  roomtobreathe check")
         return 1
-    log("\nFrom now on, just run:  crowdsafe check   then   crowdsafe edge")
-    log("Options you type still win, for example:  crowdsafe edge --source 1")
+    log("\nFrom now on, just run:  roomtobreathe check   then   roomtobreathe edge")
+    log("Options you type still win, for example:  roomtobreathe edge --source 1")
     return 0
 
 
@@ -137,7 +137,7 @@ def _ask_model(s: _Setup, default: str, has_ort: bool, frame, every_s: float) ->
                        default)
         c = Checker(s.log)
         if ans.lower() != "hog" and not has_ort:
-            c.add("FAIL", "the model runtime is not installed", "Run:  pip install 'crowdsafe[onnx]'")
+            c.add("FAIL", "the model runtime is not installed", "Run:  pip install 'roomtobreathe[onnx]'")
         else:
             name = model_store.DEFAULT_MODEL if ans.lower() == "auto" else ans.lower()
             if name in model_store.MODELS and not model_store.is_installed(name):
@@ -156,7 +156,7 @@ def _ask_model(s: _Setup, default: str, has_ort: bool, frame, every_s: float) ->
 
 def _ask_server(s: _Setup, default: Optional[str], saved_token: Optional[str], calib) -> Tuple[str, Optional[str]]:
     while True:
-        server = s.prompt("4. What is the control-room address? It is shown when  crowdsafe serve  starts,\n"
+        server = s.prompt("4. What is the control-room address? It is shown when  roomtobreathe serve  starts,\n"
                           "   for example http://192.168.1.20:8000", default)
         if "://" not in server:
             server = "http://" + server
@@ -187,7 +187,7 @@ def _ask_server(s: _Setup, default: Optional[str], saved_token: Optional[str], c
 
 def _ask_token(s: _Setup, saved: Optional[str], optional: bool = False) -> Optional[str]:
     s.log("")
-    s.log("5. Type the access token (CROWDSAFE_TOKEN on the control-room computer). Typing stays hidden.")
+    s.log("5. Type the access token (RTB_TOKEN on the control-room computer). Typing stays hidden.")
     hint = "Press Enter to keep the saved token" if saved else (
         "Press Enter if the control room has none" if optional else "")
     while True:

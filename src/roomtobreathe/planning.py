@@ -1,6 +1,6 @@
 """Before-the-event planning: safe capacity and permit risk assessment.
 
-This is the highest-impact, lowest-cost part of CrowdSafe. It needs no
+This is the highest-impact, lowest-cost part of Room to Breathe. It needs no
 cameras. It encodes the structural lessons of past disasters, for example
 Hathras 2024: about 250,000 people attended a site permitted for 80,000, with
 roughly 80 police and a single congested exit.
@@ -259,7 +259,7 @@ def assess_risk(p: EventProfile) -> RiskAssessment:
             "Use lower planning densities and give vulnerable groups separate queues.")
     if not p.live_monitoring and p.expected_attendance >= 10000:
         add("NO_MONITORING", 6, "No live density monitoring for a large crowd.",
-            "Deploy CrowdSafe live monitoring (Tier 1+) or at least gate counting (Tier 0).")
+            "Deploy Room to Breathe live monitoring (Tier 1+) or at least gate counting (Tier 0).")
 
     score = min(100, sum(x.points for x in f))
     if score >= 60:

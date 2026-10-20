@@ -1,4 +1,4 @@
-"""``crowdsafe check``: test an edge device's setup before the event, step by step.
+"""``roomtobreathe check``: test an edge device's setup before the event, step by step.
 
 Each step prints OK, WARN or FAIL with a plain-language fix. Nothing is sent
 except a health request and an empty observation list to the server. Frames
@@ -34,9 +34,9 @@ class Checker:
 
 def run_check(source: Optional[str], calibration: Optional[str], server: Optional[str],
               model: Optional[str] = "auto", token: Optional[str] = None, every_s: float = 1.0,
-              log: Callable[[str], None] = print, start_hint: str = "crowdsafe edge ...") -> int:
+              log: Callable[[str], None] = print, start_hint: str = "roomtobreathe edge ...") -> int:
     c = Checker(log)
-    log("CrowdSafe setup check\n")
+    log("Room to Breathe setup check\n")
 
     log("1. Software")
     has_ort = check_software(c)
@@ -65,14 +65,14 @@ def check_software(c: Checker) -> Optional[bool]:
         import cv2  # noqa: F401
         import numpy  # noqa: F401
     except ImportError:
-        c.add("FAIL", "camera support is not installed", "Run:  pip install 'crowdsafe[vision,onnx]'")
+        c.add("FAIL", "camera support is not installed", "Run:  pip install 'roomtobreathe[vision,onnx]'")
         return None
     c.add("OK", "camera support (numpy, OpenCV)")
     try:
         import onnxruntime  # noqa: F401
     except ImportError:
         c.add("FAIL", "model runtime is not installed, so dense crowds cannot be counted",
-              "Run:  pip install 'crowdsafe[onnx]'")
+              "Run:  pip install 'roomtobreathe[onnx]'")
         return False
     c.add("OK", "model runtime (onnxruntime)")
     return True
@@ -82,7 +82,7 @@ def check_calibration(c: Checker, calibration: Optional[str]):
     """The loaded Calibration, or None."""
     if not calibration:
         c.add("FAIL", "no calibration file given",
-              "Run  crowdsafe setup  once, or pass --calibration cam.json (see docs/vision.md, step 1)")
+              "Run  roomtobreathe setup  once, or pass --calibration cam.json (see docs/vision.md, step 1)")
         return None
     from .vision.calibration import Calibration
 
@@ -112,7 +112,7 @@ def check_camera(c: Checker, source: Optional[str], calib=None):
     """One picture from the camera, or None."""
     if not source:
         c.add("FAIL", "no camera given",
-              "Run  crowdsafe setup  once, or pass --source rtsp://..., a video file, or a webcam number like 0")
+              "Run  roomtobreathe setup  once, or pass --source rtsp://..., a video file, or a webcam number like 0")
         return None
     import cv2
 
@@ -161,7 +161,7 @@ def check_model(c: Checker, model: Optional[str], frame=None, every_s: float = 1
     name = next((n for n in model_store.MODELS if str(model_store.model_path(n)) == path), None)
     if name and not model_store.verify(name):
         c.add("FAIL", f"model file {path} is damaged (checksum mismatch)",
-              f"Delete it and run:  crowdsafe model fetch {name}")
+              f"Delete it and run:  roomtobreathe model fetch {name}")
         return
     c.add("OK", f"model {path}")
     _check_speed(c, path, frame, every_s)
@@ -201,7 +201,7 @@ def _check_speed(c: Checker, path: str, frame, every_s: float) -> None:
 
 def check_server(c: Checker, server: Optional[str], token: Optional[str] = None, calib=None) -> None:
     if not server:
-        c.add("FAIL", "no server given", "Run  crowdsafe setup  once, or pass --server http://<control-room-address>:8000")
+        c.add("FAIL", "no server given", "Run  roomtobreathe setup  once, or pass --server http://<control-room-address>:8000")
         return
     if check_reachable(c, server):
         check_token(c, server, token)
@@ -214,12 +214,12 @@ def check_reachable(c: Checker, server: str) -> bool:
         with urllib.request.urlopen(base + "/api/health", timeout=5) as r:
             health = json.loads(r.read())
         if not isinstance(health, dict):
-            raise ValueError("not a CrowdSafe server")
+            raise ValueError("not a Room to Breathe server")
     except (OSError, ValueError) as e:
         c.add("FAIL", f"cannot reach {base} ({e})",
-              "Check the address, that `crowdsafe serve` is running there, and that no firewall blocks the port.")
+              "Check the address, that `roomtobreathe serve` is running there, and that no firewall blocks the port.")
         return False
-    c.add("OK", f"server reachable (CrowdSafe {health.get('version', '?')}, mode {health.get('mode', '?')})")
+    c.add("OK", f"server reachable (Room to Breathe {health.get('version', '?')}, mode {health.get('mode', '?')})")
     return True
 
 
@@ -233,7 +233,7 @@ def check_token(c: Checker, server: str, token: Optional[str]) -> Optional[int]:
     except urllib.error.HTTPError as e:
         if e.code == 401:
             c.add("FAIL", "the server needs an access token" + (" and this one is wrong" if token else ""),
-                  "Use the value of CROWDSAFE_TOKEN on the server: save it with  crowdsafe setup,  or pass --token.")
+                  "Use the value of RTB_TOKEN on the server: save it with  roomtobreathe setup,  or pass --token.")
         else:
             c.add("FAIL", f"the server refused a test report (HTTP {e.code})", "")
         return e.code
@@ -267,7 +267,7 @@ def _zone_ids(venue: dict) -> List[str]:
     return [z.get("id") or z.get("zone_id") for z in zones if isinstance(z, dict)]
 
 
-def _summary(c: Checker, start_hint: str = "crowdsafe edge ...") -> int:
+def _summary(c: Checker, start_hint: str = "roomtobreathe edge ...") -> int:
     fails = sum(s == "FAIL" for s, _, _ in c.results)
     warns = sum(s == "WARN" for s, _, _ in c.results)
     c.log("")

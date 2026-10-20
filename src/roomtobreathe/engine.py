@@ -1,4 +1,4 @@
-"""The CrowdSafe engine: fusion -> assessment -> alerts -> playbook actions.
+"""The Room to Breathe engine: fusion -> assessment -> alerts -> playbook actions.
 
 Transport-agnostic. The HTTP server, the CLI and the tests all drive the same
 object, so behaviour stays identical from a laptop demo to a control room.
@@ -20,7 +20,7 @@ class Engine:
     def __init__(self, venue: Venue, playbook: Optional[Playbook] = None,
                  stale_after_s: float = STALE_AFTER_S, cooldown_s: float = 60.0, event_log=None):
         self.venue = venue
-        self.event_log = event_log  # crowdsafe.eventlog.EventLog, or None
+        self.event_log = event_log  # roomtobreathe.eventlog.EventLog, or None
         self.playbook = playbook or default_playbook()
         self.stale_after_s = stale_after_s
         self.cooldown_s = cooldown_s
@@ -60,13 +60,13 @@ class Engine:
             try:
                 self.event_log.record(kind, **{"ts": self.now(), "mode": "demo" if self.sim else "live", **data})
             except OSError as e:  # a full disk must not stop the warnings
-                print(f"[crowdsafe] could not write the event log: {e}")
+                print(f"[roomtobreathe] could not write the event log: {e}")
 
     def execute(self, action: dict, by: str = "operator") -> dict:
         """Record an operator-approved action and apply it (to the simulator in demo mode).
 
         In a real deployment the integrations layer (PA, gate actuators, SMS,
-        CAP) subscribes to the action log. CrowdSafe recommends and a human approves.
+        CAP) subscribes to the action log. Room to Breathe recommends and a human approves.
         """
         result = "logged"
         g = self.venue.gates.get(action.get("gate", ""))
@@ -83,11 +83,13 @@ class Engine:
         return entry
 
     # --- demo ------------------------------------------------------------
-    def start_demo(self, scenario: str = "pandal_surge") -> None:
+    def start_demo(self, scenario="pandal_surge") -> None:
+        """Run the simulator. ``scenario`` is a built-in scenario name or a ``Scenario`` object."""
         self._reset()
-        self.sim = FlowSimulator(self.venue, load_scenario(scenario))
+        sc = load_scenario(scenario) if isinstance(scenario, str) else scenario
+        self.sim = FlowSimulator(self.venue, sc)
         self.sim_start = time.time()
-        self._record("demo_start", scenario=scenario)
+        self._record("demo_start", scenario=sc.name)
 
     def stop_demo(self) -> None:
         self._record("demo_stop")

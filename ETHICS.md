@@ -1,6 +1,6 @@
 # Ethics & acceptable use
 
-CrowdSafe exists to keep people alive in crowds. It is a **safety** tool, not a **surveillance** tool.
+Room to Breathe exists to keep people alive in crowds. It is a **safety** tool, not a **surveillance** tool.
 
 ## Hard lines (enforced by design and by project policy)
 
@@ -8,16 +8,16 @@ CrowdSafe exists to keep people alive in crowds. It is a **safety** tool, not a 
    aggregate density and motion fields. Pull requests that add identity features will be rejected.
 2. **Frames stay on the edge device.** Only per-zone aggregate numbers are sent. Any video clip retention
    (e.g. for after-action review) must be opt-in, short, access-controlled and documented.
-3. **Decision support, not autopilot.** CrowdSafe recommends; a trained, accountable person decides.
+3. **Decision support, not autopilot.** Room to Breathe recommends; a trained, accountable person decides.
    Every executed action is logged with who approved it.
-4. **Protecting attendees, including protesters.** At political gatherings CrowdSafe's role is to keep
+4. **Protecting attendees, including protesters.** At political gatherings Room to Breathe's role is to keep
    participants safe from crushes. It must not be used to identify, profile or disperse lawful assemblies.
 
 ## Data protection
 
 Deployers are responsible for complying with local law, for example India's Digital Personal Data
 Protection Act 2023 or the EU GDPR. Aggregate density data is designed to contain no personal data.
-Telecom or Wi-Fi feeds must be aggregated and anonymised *before* they reach CrowdSafe.
+Telecom or Wi-Fi feeds must be aggregated and anonymised *before* they reach Room to Breathe.
 
 ## Known limitations (read before deploying)
 

@@ -9,8 +9,8 @@ import pytest
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
-    """CROWDSAFE_HOME in a temp folder, so the saved setup and models never touch the real user folders."""
-    monkeypatch.setenv("CROWDSAFE_HOME", str(tmp_path / "home"))
+    """RTB_HOME in a temp folder, so the saved setup and models never touch the real user folders."""
+    monkeypatch.setenv("RTB_HOME", str(tmp_path / "home"))
     return tmp_path / "home"
 
 

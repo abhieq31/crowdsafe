@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e . && crowdsafe capacity --area 960 --exit 3 --exit 2.5 && crowdsafe simulate --respond --minutes 25
+      - run: pip install -e . && roomtobreathe capacity --area 960 --exit 3 --exit 2.5 && roomtobreathe simulate --respond --minutes 25
 
   js:
     runs-on: ubuntu-latest
@@ -44,17 +44,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build server image
-        run: docker build -f docker/Dockerfile -t crowdsafe:test .
+        run: docker build -f docker/Dockerfile -t roomtobreathe:test .
       - name: Server starts in demo mode and answers health checks
         run: |
-          docker run -d --name demo -p 8000:8000 crowdsafe:test
+          docker run -d --name demo -p 8000:8000 roomtobreathe:test
           for i in $(seq 30); do curl -fs localhost:8000/api/health && break; sleep 1; done
           curl -fs localhost:8000/api/health | grep '"mode":"demo"'
           docker rm -f demo
       - name: Server runs live with a mounted venue, token and writable event record
         run: |
-          mkdir -p data && cp src/crowdsafe/data/venues/pandal.json data/venue.json
-          docker run -d --name live -p 8001:8000 -v "$PWD/data:/data" -e CROWDSAFE_TOKEN=t crowdsafe:test
+          mkdir -p data && cp src/roomtobreathe/data/venues/pandal.json data/venue.json
+          docker run -d --name live -p 8001:8000 -v "$PWD/data:/data" -e RTB_TOKEN=t roomtobreathe:test
           for i in $(seq 30); do curl -fs localhost:8001/api/health && break; sleep 1; done
           curl -fs localhost:8001/api/health | grep '"auth_required":true'
           curl -fs -X POST localhost:8001/api/actions -H 'Authorization: Bearer t' \
@@ -64,5 +64,5 @@ jobs:
           docker rm -f live
       - name: Build edge image (model baked in, checksum verified)
         run: |
-          docker build -f docker/Dockerfile.edge -t crowdsafe-edge:test .
-          docker run --rm crowdsafe-edge:test model list | grep -E 'dense +downloaded'
+          docker build -f docker/Dockerfile.edge -t roomtobreathe-edge:test .
+          docker run --rm roomtobreathe-edge:test model list | grep -E 'dense +downloaded'

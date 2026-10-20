@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { computeCapacity, assessRisk } from "../../src/crowdsafe/web/js/planning.js";
+import { computeCapacity, assessRisk } from "../../src/roomtobreathe/web/js/planning.js";
 
 const vectors = JSON.parse(readFileSync(new URL("../vectors/planning.json", import.meta.url)));
 

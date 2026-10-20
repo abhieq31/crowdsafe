@@ -1,0 +1,32 @@
+// Runs the Room to Breathe Python engine in a background thread with Pyodide, so the page stays
+// responsive while a what-if simulates thousands of seconds of crowd flow.
+/* global importScripts, loadPyodide */
+const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/";
+let ready = null;
+
+async function start() {
+  postMessage({ status: "Loading Python in your browser…" });
+  importScripts(PYODIDE + "pyodide.js");
+  const py = await loadPyodide({ indexURL: PYODIDE });
+  await py.loadPackage("micropip");
+  const manifest = await (await fetch(new URL("../py/wheel.json", self.location.href))).json();
+  postMessage({ status: "Loading the Room to Breathe engine…" });
+  await py.pyimport("micropip").install(new URL("../py/" + manifest.wheel, self.location.href).href, { deps: false });
+  py.runPython("import json\nfrom roomtobreathe.whatif import describe, run_whatif");
+  return py;
+}
+
+self.onmessage = async (e) => {
+  try {
+    ready = ready || start();
+    const py = await ready;
+    postMessage({ status: "Simulating the crowd, twice (nobody acts, then with the playbook)…" });
+    py.globals.set("venue_json", JSON.stringify(e.data.venue));
+    py.globals.set("params_json", JSON.stringify(e.data.params));
+    const out = py.runPython("r = run_whatif(json.loads(venue_json), json.loads(params_json))\nr['conclusions'] = describe(r)\njson.dumps(r)");
+    postMessage({ result: JSON.parse(out) });
+  } catch (err) {
+    ready = null;
+    postMessage({ error: String(err && err.message ? err.message : err).split("\n").slice(-3).join(" ") });
+  }
+};
