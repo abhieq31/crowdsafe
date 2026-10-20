@@ -1,0 +1,57 @@
+{
+  "_comment": "Generic playbook. Authorities should review and adapt it with police, fire and medical teams BEFORE the event. Translations must be checked by native speakers.",
+  "messages": {
+    "slow_down": {
+      "en": "Please walk slowly and keep moving. Do not push. Follow the marshals.",
+      "hi": "कृपया धीरे चलें और आगे बढ़ते रहें। धक्का न दें। स्वयंसेवकों के निर्देशों का पालन करें।",
+      "bn": "অনুগ্রহ করে ধীরে হাঁটুন এবং এগিয়ে চলুন। ধাক্কা দেবেন না। স্বেচ্ছাসেবকদের নির্দেশ মেনে চলুন।"
+    },
+    "hold": {
+      "en": "Please stop and wait where you are. {zone} is full. Entry will reopen shortly.",
+      "hi": "कृपया जहाँ हैं वहीं रुकें और प्रतीक्षा करें। {zone} भरा हुआ है। प्रवेश जल्द फिर से खुलेगा।",
+      "bn": "অনুগ্রহ করে যেখানে আছেন সেখানেই থামুন এবং অপেক্ষা করুন। {zone} ভর্তি। শীঘ্রই প্রবেশ আবার খুলবে।"
+    },
+    "no_danger": {
+      "en": "There is no danger. Do not believe rumours. Move slowly and calmly.",
+      "hi": "कोई खतरा नहीं है। अफवाहों पर विश्वास न करें। धीरे-धीरे और शांति से चलें।",
+      "bn": "কোনো বিপদ নেই। গুজবে বিশ্বাস করবেন না। ধীরে ধীরে শান্তভাবে চলুন।"
+    },
+    "use_other_exits": {
+      "en": "All exits are open. Please use the nearest open exit. Do not run.",
+      "hi": "सभी निकास खुले हैं। कृपया निकटतम खुले निकास का उपयोग करें। दौड़ें नहीं।",
+      "bn": "সমস্ত প্রস্থান পথ খোলা। অনুগ্রহ করে নিকটতম খোলা পথ ব্যবহার করুন। দৌড়াবেন না।"
+    }
+  },
+  "rules": [
+    {"when": {"level": "YELLOW"},
+     "actions": [
+       {"type": "notify", "role": "zone_marshals", "note": "Density rising. Watch the choke points."},
+       {"type": "announce", "message": "slow_down"}
+     ]},
+    {"when": {"level": "ORANGE"},
+     "actions": [
+       {"type": "meter_gate", "gates": "inflow", "factor": 0.5, "note": "Halve entry rate into the zone"},
+       {"type": "open_gate", "gates": "outflow", "note": "Make sure every exit from the zone is open"},
+       {"type": "announce", "message": "slow_down"},
+       {"type": "dispatch", "role": "marshal", "count": 4, "note": "To the zone's inflow gates"}
+     ]},
+    {"when": {"level": "RED"},
+     "actions": [
+       {"type": "close_gate", "gates": "entry", "note": "STOP new arrivals at the perimeter. Hold people back upstream, not at the crush point"},
+       {"type": "meter_gate", "gates": "upstream", "factor": 0.3, "note": "Slow inner gates to the same rate as the zone entry, so the crush does not move into the queue behind"},
+       {"type": "meter_gate", "gates": "inflow", "factor": 0.3, "note": "Reduce entry into the zone to a trickle. Do not seal it while people are packed behind it"},
+       {"type": "open_gate", "gates": "outflow", "note": "Open ALL exits, including emergency exits"},
+       {"type": "announce", "message": "hold"},
+       {"type": "stop_programme", "note": "Pause darshan, performance or speech so people stop pressing forward"},
+       {"type": "dispatch", "role": "medical", "count": 2, "note": "Stage at the zone exits with triage tags"},
+       {"type": "dispatch", "role": "police", "count": 6, "note": "To the perimeter entry, to hold arrivals and redirect them"},
+       {"type": "cell_broadcast", "message": "hold", "note": "Geofenced warning to phones approaching the venue"}
+     ]},
+    {"when": {"min_level": "YELLOW", "trigger": "rumour"},
+     "actions": [{"type": "announce", "message": "no_danger"}]},
+    {"when": {"min_level": "ORANGE", "trigger": "event_end"},
+     "actions": [{"type": "announce", "message": "use_other_exits"}]},
+    {"when": {"min_level": "YELLOW", "trigger": "free_distribution"},
+     "actions": [{"type": "notify", "role": "organiser", "note": "Pause free distribution, or move it away from the main flow"}]}
+  ]
+}

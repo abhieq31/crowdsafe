@@ -1,0 +1,219 @@
+{
+ "capacity": [
+  {
+   "name": "pandal hall",
+   "area": 960,
+   "exits": [
+    {
+     "width_m": 3
+    },
+    {
+     "width_m": 2.5
+    }
+   ],
+   "density": 2.0,
+   "evac_s": 480,
+   "expected": {
+    "usable_area_m2": 960,
+    "planning_density": 2.0,
+    "area_capacity": 1920,
+    "egress_capacity": 3607,
+    "egress_capacity_largest_blocked": 1640,
+    "safe_capacity": 1640,
+    "limiting_factor": "exits (largest blocked)",
+    "evac_time_at_safe_capacity_s": 218.2
+   }
+  },
+  {
+   "name": "single exit tent (Hathras-like)",
+   "area": 20000,
+   "exits": [
+    {
+     "width_m": 4
+    }
+   ],
+   "density": 2.0,
+   "evac_s": 480,
+   "expected": {
+    "usable_area_m2": 20000,
+    "planning_density": 2.0,
+    "area_capacity": 40000,
+    "egress_capacity": 2624,
+    "egress_capacity_largest_blocked": 0,
+    "safe_capacity": 2624,
+    "limiting_factor": "single exit (no redundancy)",
+    "evac_time_at_safe_capacity_s": 480.0
+   }
+  },
+  {
+   "name": "stadium stand stairs",
+   "area": 5000,
+   "exits": [
+    {
+     "width_m": 6,
+     "stairs": true
+    },
+    {
+     "width_m": 6,
+     "stairs": true
+    },
+    {
+     "width_m": 4
+    }
+   ],
+   "density": 4.0,
+   "evac_s": 480,
+   "expected": {
+    "usable_area_m2": 5000,
+    "planning_density": 4.0,
+    "area_capacity": 20000,
+    "egress_capacity": 8959,
+    "egress_capacity_largest_blocked": 5792,
+    "safe_capacity": 5792,
+    "limiting_factor": "exits (largest blocked)",
+    "evac_time_at_safe_capacity_s": 310.3
+   }
+  },
+  {
+   "name": "no exits",
+   "area": 100,
+   "exits": [],
+   "density": 2.0,
+   "evac_s": 480,
+   "expected": {
+    "usable_area_m2": 100,
+    "planning_density": 2.0,
+    "area_capacity": 200,
+    "egress_capacity": 0,
+    "egress_capacity_largest_blocked": 0,
+    "safe_capacity": 0,
+    "limiting_factor": "exits (largest blocked)",
+    "evac_time_at_safe_capacity_s": null
+   }
+  },
+  {
+   "name": "area limited field",
+   "area": 500,
+   "exits": [
+    {
+     "width_m": 10
+    },
+    {
+     "width_m": 10
+    },
+    {
+     "width_m": 10
+    }
+   ],
+   "density": 2.0,
+   "evac_s": 480,
+   "expected": {
+    "usable_area_m2": 500,
+    "planning_density": 2.0,
+    "area_capacity": 1000,
+    "egress_capacity": 19680,
+    "egress_capacity_largest_blocked": 13120,
+    "safe_capacity": 1000,
+    "limiting_factor": "area",
+    "evac_time_at_safe_capacity_s": 24.4
+   }
+  }
+ ],
+ "risk": [
+  {
+   "name": "Hathras-like",
+   "profile": {
+    "event_type": "religious",
+    "expected_attendance": 250000,
+    "safe_capacity": 80000,
+    "police": 80,
+    "marshals": 0,
+    "medical_posts": 0,
+    "ambulances": 0,
+    "exits": 1,
+    "weather": "rain",
+    "terrain": [
+     "mud"
+    ],
+    "free_distribution": true,
+    "vip_or_celebrity": true,
+    "fixed_start_or_end": true
+   },
+   "expected": {
+    "score": 100,
+    "tier": "SEVERE",
+    "approve": "do_not_approve",
+    "occupancy_ratio": 3.125,
+    "codes": [
+     "OVER_CAPACITY",
+     "SINGLE_EXIT",
+     "LOW_POLICE",
+     "FREE_DISTRIBUTION",
+     "RELIGIOUS",
+     "LOW_MARSHALS",
+     "NO_MEDICAL",
+     "VIP",
+     "RAIN",
+     "NO_MONITORING",
+     "NO_AMBULANCE",
+     "SURGE_TIMES",
+     "TERRAIN_MUD"
+    ]
+   }
+  },
+  {
+   "name": "well planned concert",
+   "profile": {
+    "event_type": "entertainment",
+    "expected_attendance": 8000,
+    "safe_capacity": 12000,
+    "police": 20,
+    "marshals": 40,
+    "medical_posts": 2,
+    "ambulances": 2,
+    "exits": 4,
+    "fixed_start_or_end": true,
+    "live_monitoring": true
+   },
+   "expected": {
+    "score": 5,
+    "tier": "LOW",
+    "approve": "approve",
+    "occupancy_ratio": 0.667,
+    "codes": [
+     "SURGE_TIMES"
+    ]
+   }
+  },
+  {
+   "name": "near capacity puja",
+   "profile": {
+    "event_type": "religious",
+    "expected_attendance": 2300,
+    "safe_capacity": 2500,
+    "police": 3,
+    "marshals": 10,
+    "medical_posts": 1,
+    "ambulances": 0,
+    "exits": 2,
+    "night": true,
+    "past_incidents_at_site": 1,
+    "elderly_or_children_share": 0.35
+   },
+   "expected": {
+    "score": 47,
+    "tier": "HIGH",
+    "approve": "approve_with_conditions",
+    "occupancy_ratio": 0.92,
+    "codes": [
+     "NEAR_CAPACITY",
+     "HISTORY",
+     "RELIGIOUS",
+     "SURGE_TIMES",
+     "VULNERABLE",
+     "NIGHT"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+services:
+  crowdsafe:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Set a token to require "Authorization: Bearer <token>" on write endpoints.
+      CROWDSAFE_TOKEN: ""
+    restart: unless-stopped

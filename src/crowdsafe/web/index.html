@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CrowdSafe</title>
+  <meta name="description" content="Open-source crowd-crush prevention: plan safe capacity, monitor density live, act early.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">◉</span> CrowdSafe</div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="live" aria-selected="true">Live command</button>
+      <button role="tab" data-tab="plan">Plan &amp; permit</button>
+      <button role="tab" data-tab="count">Gate counter</button>
+    </nav>
+    <div class="conn" id="conn" title="Server connection">offline</div>
+  </header>
+
+  <!-- LIVE ------------------------------------------------------------ -->
+  <main id="tab-live" class="tab active">
+    <section class="statusbar">
+      <div>
+        <div class="venue-name" id="venue-name">-</div>
+        <div class="muted small"><span id="mode-badge" class="badge">-</span> <span id="clock"></span></div>
+      </div>
+      <div class="occ">
+        <div class="small muted">Occupancy vs permit</div>
+        <div class="occ-bar"><div id="occ-fill"></div></div>
+        <div class="small" id="occ-text">-</div>
+      </div>
+      <div class="demo-controls">
+        <select id="scenario" aria-label="Scenario"></select>
+        <select id="speed" aria-label="Simulation speed">
+          <option value="1">1×</option><option value="5" selected>5×</option>
+          <option value="10">10×</option><option value="30">30×</option>
+        </select>
+        <button id="demo-start" class="primary">Start demo</button>
+        <button id="demo-stop">Stop</button>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card map-card">
+        <h2>Venue</h2>
+        <svg id="map" role="img" aria-label="Venue map coloured by risk level"></svg>
+        <div class="legend small">
+          <span><i class="sw GREEN"></i>normal</span><span><i class="sw YELLOW"></i>dense</span>
+          <span><i class="sw ORANGE"></i>warning</span><span><i class="sw RED"></i>critical</span>
+          <span><i class="sw UNKNOWN"></i>no data</span>
+        </div>
+      </section>
+
+      <section class="card alerts-card">
+        <h2>Alerts &amp; recommended actions</h2>
+        <div id="alerts" class="alerts"><p class="muted">No alerts yet.</p></div>
+      </section>
+
+      <section class="card zones-card">
+        <h2>Zones</h2>
+        <div id="zones" class="zones"></div>
+      </section>
+
+      <section class="card side-card">
+        <h2>Situation triggers</h2>
+        <p class="muted small">Mark what is happening on the ground. Active triggers escalate risk.</p>
+        <div id="triggers" class="triggers"></div>
+        <h2>Action log</h2>
+        <ol id="log" class="log small"></ol>
+      </section>
+    </div>
+  </main>
+
+  <!-- PLAN ------------------------------------------------------------ -->
+  <main id="tab-plan" class="tab">
+    <div class="grid plan-grid">
+      <section class="card">
+        <h2>1 · Venue capacity</h2>
+        <p class="muted small">Works offline. Safe capacity is the lower of what the ground holds and what the exits can drain, assuming the largest exit is blocked.</p>
+        <form id="cap-form" class="form">
+          <label>Total area (m²) <input name="area" type="number" min="1" value="1280"></label>
+          <label>Usable fraction (minus stage, stalls, idol) <input name="usable" type="number" step="0.05" min="0.05" max="1" value="0.75"></label>
+          <label>Planning density (persons/m²) <input name="density" type="number" step="0.1" min="0.5" max="4" value="2"></label>
+          <label>Evacuation target (minutes) <input name="evac" type="number" min="1" value="8"></label>
+          <fieldset>
+            <legend>Exits</legend>
+            <div id="exits"></div>
+            <button type="button" id="add-exit">+ Add exit</button>
+          </fieldset>
+        </form>
+        <div id="cap-out" class="out"></div>
+      </section>
+
+      <section class="card">
+        <h2>2 · Event risk &amp; permit</h2>
+        <form id="risk-form" class="form two">
+          <label>Event type
+            <select name="event_type">
+              <option>religious</option><option>entertainment</option><option>political</option>
+              <option>sports</option><option>other</option>
+            </select></label>
+          <label>Expected attendance <input name="expected_attendance" type="number" min="1" value="5000"></label>
+          <label>Police <input name="police" type="number" min="0" value="10"></label>
+          <label>Marshals / volunteers <input name="marshals" type="number" min="0" value="20"></label>
+          <label>Medical posts <input name="medical_posts" type="number" min="0" value="1"></label>
+          <label>Ambulances <input name="ambulances" type="number" min="0" value="1"></label>
+          <label>Previous incidents at site <input name="past_incidents_at_site" type="number" min="0" value="0"></label>
+          <label>Elderly / children share <input name="elderly_or_children_share" type="number" min="0" max="1" step="0.05" value="0.2"></label>
+          <label>Weather
+            <select name="weather"><option>clear</option><option>rain</option><option>heat</option><option>storm</option></select></label>
+          <fieldset class="checks">
+            <legend>Conditions</legend>
+            <label><input type="checkbox" name="free_distribution"> Free distribution (prasad, food, gifts)</label>
+            <label><input type="checkbox" name="vip_or_celebrity"> VIP / celebrity</label>
+            <label><input type="checkbox" name="fixed_start_or_end" checked> Fixed start / end time</label>
+            <label><input type="checkbox" name="night"> Night</label>
+            <label><input type="checkbox" name="live_monitoring"> Live density monitoring</label>
+          </fieldset>
+          <fieldset class="checks">
+            <legend>Terrain</legend>
+            <label><input type="checkbox" name="terrain" value="mud"> Mud / soft ground</label>
+            <label><input type="checkbox" name="terrain" value="slope"> Slope</label>
+            <label><input type="checkbox" name="terrain" value="steps"> Steps</label>
+            <label><input type="checkbox" name="terrain" value="riverbank"> Riverbank / ghat</label>
+            <label><input type="checkbox" name="terrain" value="dead_end"> Dead ends</label>
+          </fieldset>
+        </form>
+        <div id="risk-out" class="out"></div>
+        <button id="print-plan" class="primary">Print crowd safety plan</button>
+      </section>
+    </div>
+  </main>
+
+  <!-- COUNT ----------------------------------------------------------- -->
+  <main id="tab-count" class="tab">
+    <section class="card counter">
+      <h2>Gate counter (Tier 0)</h2>
+      <p class="muted small">For volunteers at a gate. Tap for every person in or out. Saved on this phone, and sent to the server when one is connected.</p>
+      <div class="form two">
+        <label>Permitted capacity <input id="cnt-permit" type="number" min="1" value="2500"></label>
+        <label>Report to zone (optional) <select id="cnt-zone"><option value="">-</option></select></label>
+      </div>
+      <div class="cnt-display" id="cnt-display">0</div>
+      <div class="occ-bar big"><div id="cnt-fill"></div></div>
+      <div class="cnt-pct" id="cnt-pct">0% of permit</div>
+      <div class="cnt-buttons">
+        <button data-d="1" class="in">+1 in</button>
+        <button data-d="10" class="in">+10 in</button>
+        <button data-d="-1" class="out-btn">−1 out</button>
+        <button data-d="-10" class="out-btn">−10 out</button>
+      </div>
+      <button id="cnt-reset" class="link">Reset counter</button>
+    </section>
+  </main>
+
+  <footer class="foot small muted">
+    CrowdSafe is decision support. A trained person decides. No face recognition, no individual tracking.
+    · <a href="https://github.com/abhieq31/crowdsafe">Source (Apache-2.0)</a>
+  </footer>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

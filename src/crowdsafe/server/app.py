@@ -1,0 +1,197 @@
+"""HTTP + WebSocket API and static web app.
+
+Run:  crowdsafe serve --venue <venue.json>     (or)   crowdsafe demo
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+import os
+from pathlib import Path
+from typing import List, Optional, Set
+
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from .. import __version__
+from ..alerts import TRIGGERS
+from ..cap import alert_to_cap
+from ..engine import Engine
+from ..planning import EventProfile, Exit, assess_risk, capacity_for_venue, compute_capacity
+from ..sim import SCENARIOS, load_scenario
+from ..venue import Venue, default_venue  # noqa: F401  (re-exported for convenience)
+from ..zones import Observation
+
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
+
+class ObservationIn(BaseModel):
+    zone_id: str
+    source: str
+    ts: Optional[float] = None
+    density: Optional[float] = Field(None, ge=0, le=20)
+    density_sigma: Optional[float] = Field(None, gt=0)
+    count: Optional[float] = Field(None, ge=0)
+    mean_speed: Optional[float] = Field(None, ge=0, le=15)
+    velocity_variance: Optional[float] = Field(None, ge=0)
+    inflow_pps: Optional[float] = Field(None, ge=0)
+    outflow_pps: Optional[float] = Field(None, ge=0)
+
+
+class TriggerIn(BaseModel):
+    name: str
+    active: bool = True
+    zone_id: str = "*"
+
+
+class ActionIn(BaseModel):
+    action: dict
+    by: str = "operator"
+
+
+class DemoIn(BaseModel):
+    scenario: str = "pandal_surge"
+    speed: int = Field(5, ge=1, le=60)
+
+
+class CapacityIn(BaseModel):
+    usable_area_m2: float = Field(..., gt=0)
+    exits: List[dict]
+    planning_density: float = Field(2.0, gt=0, le=6)
+    evac_target_s: float = Field(480, gt=0)
+
+
+def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0) -> FastAPI:
+    engine = Engine(venue)
+    clients: Set[WebSocket] = set()
+    cfg = {"speed": 5}
+    token = token if token is not None else os.environ.get("CROWDSAFE_TOKEN")
+
+    def require_token(authorization: Optional[str] = Header(None)) -> None:
+        if token and authorization != f"Bearer {token}":
+            raise HTTPException(401, "missing or invalid bearer token")
+
+    async def loop() -> None:
+        while True:
+            try:
+                engine.tick(sim_steps=cfg["speed"])
+                if clients:
+                    msg = json.dumps(engine.state(), ensure_ascii=False)
+                    for ws in list(clients):
+                        try:
+                            await ws.send_text(msg)
+                        except Exception:  # client went away mid-send
+                            clients.discard(ws)
+            except Exception as exc:  # never let the safety loop die silently
+                print(f"[crowdsafe] engine loop error: {exc!r}")
+            await asyncio.sleep(tick_s)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        task = asyncio.create_task(loop())
+        yield
+        task.cancel()
+
+    app = FastAPI(title="CrowdSafe", version=__version__, lifespan=lifespan,
+                  description="Open-source crowd-crush early warning and planning API.")
+    app.state.engine = engine
+
+    @app.get("/api/health")
+    def health():
+        return {"ok": True, "version": __version__, "mode": engine.state()["mode"]}
+
+    @app.get("/api/venue")
+    def get_venue():
+        d = engine.venue.to_dict()
+        d["capacity"] = capacity_for_venue(engine.venue).to_dict()
+        return d
+
+    @app.get("/api/state")
+    def get_state():
+        return engine.state()
+
+    @app.post("/api/observations", dependencies=[Depends(require_token)])
+    def post_observations(obs: List[ObservationIn]):
+        n = engine.ingest([Observation.from_dict(o.model_dump()) for o in obs])
+        return {"accepted": n, "rejected": len(obs) - n}
+
+    @app.get("/api/triggers")
+    def list_triggers():
+        return TRIGGERS
+
+    @app.post("/api/triggers", dependencies=[Depends(require_token)])
+    def set_trigger(t: TriggerIn):
+        try:
+            engine.set_trigger(t.name, t.active, t.zone_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return {"ok": True}
+
+    @app.post("/api/actions", dependencies=[Depends(require_token)])
+    def execute_action(a: ActionIn):
+        return engine.execute(a.action, by=a.by)
+
+    @app.get("/api/alerts/{alert_id}/cap")
+    def alert_cap(alert_id: str):
+        for a in engine.alerts.history:
+            if a.id == alert_id:
+                return Response(alert_to_cap(a, engine.venue), media_type="application/cap+xml")
+        raise HTTPException(404, "alert not found")
+
+    @app.get("/api/scenarios")
+    def scenarios():
+        return {k: load_scenario(k).description for k in SCENARIOS}
+
+    @app.post("/api/demo/start", dependencies=[Depends(require_token)])
+    def demo_start(d: DemoIn):
+        if d.scenario not in SCENARIOS:
+            raise HTTPException(400, f"unknown scenario {d.scenario!r}")
+        engine.start_demo(d.scenario)
+        cfg["speed"] = d.speed
+        return {"ok": True}
+
+    @app.post("/api/demo/stop", dependencies=[Depends(require_token)])
+    def demo_stop():
+        engine.stop_demo()
+        return {"ok": True}
+
+    @app.post("/api/plan/capacity")
+    def plan_capacity(c: CapacityIn):
+        exits = [Exit(float(e["width_m"]), bool(e.get("stairs", False))) for e in c.exits]
+        return compute_capacity(c.usable_area_m2, exits, c.planning_density, c.evac_target_s).to_dict()
+
+    @app.post("/api/plan/risk")
+    def plan_risk(p: dict):
+        try:
+            return assess_risk(EventProfile(**p)).to_dict()
+        except TypeError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.websocket("/ws/live")
+    async def ws_live(ws: WebSocket):
+        await ws.accept()
+        clients.add(ws)
+        try:
+            await ws.send_text(json.dumps(engine.state(), ensure_ascii=False))
+            while True:
+                await ws.receive_text()  # keepalive; the client sends nothing meaningful
+        except WebSocketDisconnect:
+            pass
+        finally:
+            clients.discard(ws)
+
+    @app.get("/")
+    def index():
+        return FileResponse(WEB_DIR / "index.html")
+
+    app.mount("/", StaticFiles(directory=WEB_DIR), name="web")
+
+    @app.exception_handler(ValueError)
+    async def value_error(_req, exc):
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    return app

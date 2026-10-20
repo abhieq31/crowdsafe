@@ -1,0 +1,26 @@
+{
+  "id": "pandal-demo",
+  "name": "Example Puja Pandal (fictional demo venue)",
+  "permitted_capacity": 2500,
+  "origin": [22.5726, 88.3639],
+  "languages": ["en", "hi", "bn"],
+  "incident_history": [],
+  "zones": [
+    {"id": "approach", "name": "Approach road queue", "terrain": [],
+     "polygon": [[0, 0], [60, 0], [60, 12], [0, 12]]},
+    {"id": "corridor", "name": "Entry corridor", "terrain": [],
+     "polygon": [[60, 2], [80, 2], [80, 10], [60, 10]]},
+    {"id": "hall", "name": "Pandal darshan hall", "usable_fraction": 0.75, "terrain": ["mud"],
+     "polygon": [[80, -10], [120, -10], [120, 22], [80, 22]]},
+    {"id": "exit_lane", "name": "Exit lane", "terrain": ["steps"],
+     "polygon": [[120, 0], [150, 0], [150, 8], [120, 8]]}
+  ],
+  "gates": [
+    {"id": "G1", "name": "Road entry", "from": "outside", "to": "approach", "width_m": 8},
+    {"id": "G2", "name": "Corridor gate", "from": "approach", "to": "corridor", "width_m": 4},
+    {"id": "G3", "name": "Hall entrance", "from": "corridor", "to": "hall", "width_m": 4},
+    {"id": "G4", "name": "Hall exit", "from": "hall", "to": "exit_lane", "width_m": 3},
+    {"id": "G5", "name": "Lane exit to street", "from": "exit_lane", "to": "outside", "width_m": 3, "stairs": true},
+    {"id": "G6", "name": "Emergency exit (north)", "from": "hall", "to": "outside", "width_m": 2.5, "open": false}
+  ]
+}
