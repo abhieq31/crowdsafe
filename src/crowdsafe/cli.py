@@ -4,6 +4,8 @@
     crowdsafe serve --venue v.json      # live mode: edge devices POST observations
     crowdsafe capacity --area 960 --exit 3 --exit 2.5:stairs
     crowdsafe simulate --scenario pandal_surge [--respond]
+    crowdsafe model fetch               # download the default density model (once, checksum verified)
+    crowdsafe check --source rtsp://... --calibration cam.json --server http://...
     crowdsafe edge --source rtsp://... --calibration cam.json --server http://...
 """
 
@@ -85,11 +87,52 @@ def cmd_edge(a) -> int:
     try:
         from .vision.pipeline import run_edge
     except ImportError as e:
-        print(f"Vision extras are missing ({e}). Install them with:  pip install 'crowdsafe[vision]'",
+        print(f"Vision extras are missing ({e}). Install them with:  pip install 'crowdsafe[vision,onnx]'",
               file=sys.stderr)
         return 1
-    return run_edge(a.source, a.calibration, a.server, model=a.model, every_s=a.every,
-                    token=a.token, show=a.show)
+    from .vision import model_store
+
+    try:
+        import onnxruntime  # noqa: F401
+    except ImportError:
+        if (a.model or "auto").lower() != "hog":
+            print("The model runtime is missing, so dense crowds cannot be counted. Install it with:\n"
+                  "  pip install 'crowdsafe[onnx]'\nor pass --model hog to test with the inaccurate fallback.",
+                  file=sys.stderr)
+            return 1
+    try:
+        model = model_store.resolve(a.model)
+    except model_store.FetchError as e:
+        print(e, file=sys.stderr)
+        return 1
+    return run_edge(a.source, a.calibration, a.server, model=model, every_s=a.every,
+                    token=a.token, show=a.show, input_width=a.input_width or None)
+
+
+def cmd_check(a) -> int:
+    from .check import run_check
+
+    return run_check(a.source, a.calibration, a.server, model=a.model, token=a.token, every_s=a.every)
+
+
+def cmd_model(a) -> int:
+    from .vision import model_store
+
+    if a.action == "fetch":
+        names = list(model_store.MODELS) if a.name == "all" else [a.name]
+        try:
+            for n in names:
+                print(model_store.fetch(n))
+        except model_store.FetchError as e:
+            print(e, file=sys.stderr)
+            return 1
+        return 0
+    print(f"Models folder: {model_store.models_dir()}")
+    for n, info in model_store.MODELS.items():
+        state = "downloaded" if model_store.is_installed(n) else "not downloaded"
+        print(f"  {n:<7} {state:<15} {info.about}")
+    print("Licence: MIT (DM-Count code and weights). Accuracy: docs/vision.md")
+    return 0
 
 
 def main(argv=None) -> int:
@@ -117,14 +160,26 @@ def main(argv=None) -> int:
         sv.add_argument("--port", type=int, default=8000)
         sv.add_argument("--scenario", default="pandal_surge")
 
-    ed = sub.add_parser("edge", help="run the camera pipeline on an edge device")
-    ed.add_argument("--source", required=True, help="RTSP URL, video file, or webcam index")
-    ed.add_argument("--calibration", required=True, help="camera calibration JSON")
-    ed.add_argument("--server", default="http://127.0.0.1:8000")
-    ed.add_argument("--model", help="ONNX density-map model (optional)")
-    ed.add_argument("--every", type=float, default=1.0, help="seconds between reports")
-    ed.add_argument("--token")
-    ed.add_argument("--show", action="store_true", help="show a local debug window")
+    model_help = ("density model: auto (default: the dense model, downloaded on first use), dense, sparse, "
+                  "hog (inaccurate test fallback), or a path to your own .onnx")
+    for name in ("edge", "check"):
+        req = name == "edge"
+        ed = sub.add_parser(name, help="run the camera pipeline on an edge device" if req
+                            else "test camera, calibration, model, speed and server before an event")
+        ed.add_argument("--source", required=req, help="RTSP URL, video file, or webcam index")
+        ed.add_argument("--calibration", required=req, help="camera calibration JSON")
+        ed.add_argument("--server", default="http://127.0.0.1:8000")
+        ed.add_argument("--model", default="auto", help=model_help)
+        ed.add_argument("--every", type=float, default=1.0, help="seconds between reports")
+        ed.add_argument("--token")
+        if req:
+            ed.add_argument("--input-width", type=int, default=0,
+                            help="model input width in px (default 1024); smaller is faster but undercounts")
+            ed.add_argument("--show", action="store_true", help="show a local debug window")
+
+    m = sub.add_parser("model", help="download or list the density models")
+    m.add_argument("action", choices=["fetch", "list"])
+    m.add_argument("name", nargs="?", default="dense", choices=["dense", "sparse", "all"])
 
     a = p.parse_args(argv)
     if a.cmd == "capacity":
@@ -135,6 +190,10 @@ def main(argv=None) -> int:
         return cmd_serve(a, demo=a.cmd == "demo")
     if a.cmd == "edge":
         return cmd_edge(a)
+    if a.cmd == "check":
+        return cmd_check(a)
+    if a.cmd == "model":
+        return cmd_model(a)
     return 2
 
 

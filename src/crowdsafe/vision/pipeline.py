@@ -8,7 +8,9 @@ There is no face recognition and no tracking of individuals.
 from __future__ import annotations
 
 import json
+import math
 import time
+import urllib.error
 import urllib.request
 from typing import List, Optional
 
@@ -16,7 +18,7 @@ import cv2
 import numpy as np
 
 from .calibration import Calibration
-from .density import load_estimator
+from .density import OnnxDensityModel, load_estimator
 from .motion import MotionAnalyzer
 
 
@@ -37,7 +39,28 @@ def zone_observations(calib: Calibration, density_map: np.ndarray, motion: dict,
     return out
 
 
-def post(server: str, observations: List[dict], token: Optional[str] = None, timeout: float = 3.0) -> bool:
+# The server's limits (server/app.py ObservationIn). One value outside them makes it reject the whole batch.
+MAX_DENSITY = 20.0  # p/m2: more than this is physically impossible, so the calibration is wrong
+MAX_SPEED = 15.0  # m/s: a camera that moved, a scene cut, or a car, not people walking
+
+
+def sanitize(o: dict) -> dict:
+    """Drop values the server would refuse, so one bad zone never blocks the others."""
+    o = {k: v for k, v in o.items() if not (isinstance(v, float) and not math.isfinite(v))}
+    if o.get("density", 0) > MAX_DENSITY:
+        _warn_once(f"density:{o['zone_id']}",
+                   f"[edge] WARNING: zone '{o['zone_id']}' reads {o['density']:.0f} people/m2, which is impossible. "
+                   "Its calibration is probably wrong (ground points must be in metres). Density not sent.")
+        o.pop("density", None)
+        o.pop("density_sigma", None)
+    if o.get("mean_speed", 0) > MAX_SPEED:
+        o.pop("mean_speed", None)  # motion for this one report is meaningless
+        o.pop("velocity_variance", None)
+    return o
+
+
+def post(server: str, observations: List[dict], token: Optional[str] = None, timeout: float = 3.0) -> str:
+    """Send observations. Returns "ok", "retry" (network or server down: keep them) or "drop"."""
     req = urllib.request.Request(
         server.rstrip("/") + "/api/observations",
         data=json.dumps(observations).encode(),
@@ -47,22 +70,88 @@ def post(server: str, observations: List[dict], token: Optional[str] = None, tim
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return 200 <= r.status < 300
+            body = r.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            _warn_once("401", "[edge] the server refused the access token. Check --token; reports are kept.")
+            return "retry"
+        if 400 <= e.code < 500:
+            # The server will never accept this batch, so retrying it would block every later report.
+            print(f"[edge] the server rejected {len(observations)} observations (HTTP {e.code}); dropping them")
+            return "drop"
+        print(f"[edge] post failed: {e}")
+        return "retry"
     except OSError as e:
         print(f"[edge] post failed: {e}")
-        return False
+        return "retry"
+    try:
+        rejected = json.loads(body or b"{}").get("rejected", 0)
+    except (ValueError, AttributeError):
+        rejected = 0
+    if rejected:
+        # The server drops observations for zones it does not know, so a typo here means silence.
+        zones = sorted({o["zone_id"] for o in observations})
+        _warn_once("rejected", f"[edge] WARNING: the server ignored {rejected} observations. Every zone_id in the "
+                   f"camera calibration ({', '.join(zones)}) must match a zone in the server's venue file.")
+    return "ok"
+
+
+def _warn_once(key: str, msg: str) -> None:
+    if key not in _warned:
+        _warned.add(key)
+        print(msg)
+
+
+_warned: set = set()
+
+
+def report_interval(seconds_per_frame: float, requested_s: float) -> float:
+    """Seconds between reports: the requested interval, or longer if inference would not fit.
+
+    Inference may use 60% of the interval, leaving time for motion analysis and sending.
+    """
+    return max(requested_s, math.ceil(seconds_per_frame / 0.6 * 10) / 10)
+
+
+def _open(source: str):
+    return cv2.VideoCapture(int(source) if source.isdigit() else source)
 
 
 def run_edge(source: str, calibration: str, server: str, model: Optional[str] = None,
-             every_s: float = 1.0, token: Optional[str] = None, show: bool = False) -> int:
+             every_s: float = 1.0, token: Optional[str] = None, show: bool = False,
+             input_width: Optional[int] = None) -> int:
+    """Run the camera loop. ``model`` is an ONNX path (None = HOG fallback).
+
+    The model input width is never lowered automatically: on ShanghaiTech A, 768 px instead
+    of 1024 px doubles the undercount of the densest scenes, from -8% to -16% (docs/vision.md). If the device is too
+    slow for ``every_s``, it reports less often instead, and says so.
+    """
+    requested_every = every_s
     calib = Calibration.load(calibration)
     est = load_estimator(model)
     motion = MotionAnalyzer(calib)
-    cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
-    if not cap.isOpened():
-        print(f"[edge] cannot open source {source!r}")
+    cap = _open(source)
+    ok, frame = cap.read() if cap.isOpened() else (False, None)
+    if not ok:
+        print(f"[edge] cannot read from camera {source!r}. Check the address, that the camera is on, "
+              "and that this device is on the same network. `crowdsafe check` tests this.")
         return 1
-    print(f"[edge] {calib.camera_id}: estimator={est.name}, zones={list(calib.zones)}")
+    if isinstance(est, OnnxDensityModel):
+        if input_width:
+            est.input_width = input_width
+            if input_width < 1024:
+                print(f"[edge] WARNING: input width {input_width}px undercounts dense crowds (docs/vision.md)")
+        print("[edge] measuring this device's speed ...")
+        secs = est.seconds_per_frame(frame)
+        every_s = report_interval(secs, every_s)
+        print(f"[edge] model input width {est.input_width}px, {secs:.2f}s per frame")
+        if every_s > requested_every:
+            print(f"[edge] this device is too slow to report every {requested_every:g}s, so it will report "
+                  f"every {every_s:g}s. Warnings arrive a little later; a GPU or a faster device fixes this.")
+    else:
+        print("[edge] WARNING: no density model, using the HOG fallback. It badly undercounts above "
+              "~1 person/m2 and must not be relied on for dense crowds. Run:  crowdsafe model fetch")
+    print(f"[edge] {calib.camera_id}: estimator={est.name}, zones={list(calib.zones)}, every {every_s:g}s")
     backlog: List[dict] = []
     last = 0.0
     while True:
@@ -71,7 +160,7 @@ def run_edge(source: str, calibration: str, server: str, model: Optional[str] = 
             print("[edge] stream ended or dropped; retrying in 2s")
             time.sleep(2)
             cap.release()
-            cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
+            cap = _open(source)
             continue
         now = time.time()
         mot = motion.update(frame, now)
@@ -79,10 +168,10 @@ def run_edge(source: str, calibration: str, server: str, model: Optional[str] = 
             continue
         last = now
         dm = est.density_map(frame)
-        obs = zone_observations(calib, dm, mot, est.relative_sigma, calib.camera_id, now)
+        obs = [sanitize(o) for o in zone_observations(calib, dm, mot, est.relative_sigma, calib.camera_id, now)]
         # Store and forward: keep a small backlog if the network drops (networks fail at crowds).
         backlog = (backlog + obs)[-600:]
-        if post(server, backlog, token):
+        if post(server, backlog, token) != "retry":
             backlog = []
         if show:
             vis = frame.copy()

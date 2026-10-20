@@ -71,3 +71,8 @@ def test_count_within_tolerance_on_shanghaitech_b(model, sample):
     true = sample["count"]
     tol = max(SAMPLES["abs_tolerance"], SAMPLES["rel_tolerance"] * true)
     assert abs(pred - true) <= tol, f"{sample['image']}: predicted {pred:.1f}, true {true}"
+
+
+def test_speed_measurement(model):
+    frame = np.random.default_rng(2).integers(0, 255, (480, 640, 3), dtype=np.uint8)
+    assert 0 < model.seconds_per_frame(frame, runs=1) < 60

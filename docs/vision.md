@@ -35,14 +35,29 @@ map whose sum is the head count. Any model that follows it works with `OnnxDensi
 
 ### Default model: DM-Count
 
-We ship a script, not weights. It downloads a pretrained
-[DM-Count](https://github.com/cvlab-stonybrook/DM-Count) checkpoint (Wang et al., NeurIPS 2020, VGG-19),
-checks its SHA-256, exports it to ONNX and checks the ONNX output against PyTorch:
+Install it with one command. It downloads the ONNX file from this project's
+[`models-v1` release](https://github.com/abhieq31/crowdsafe/releases/tag/models-v1) and checks its SHA-256.
+No PyTorch is needed:
 
 ```bash
-pip install torch onnx onnxruntime          # only needed once, to export
+crowdsafe model fetch            # "dense": DM-Count trained on UCF-QNRF (default, best on unseen cameras)
+crowdsafe model fetch sparse     # DM-Count trained on ShanghaiTech B, for streets below ~250 people per frame
+crowdsafe model list             # shows what is downloaded and where
+```
+
+`crowdsafe edge` uses the dense model by default (`--model auto`) and downloads it on first use.
+`--model sparse`, `--model path/to/your.onnx` and `--model hog` (testing only) are also accepted.
+
+The release files were built with `scripts/export_density_onnx.py` (torch 2.14.1). A rebuild with another
+torch version may differ byte for byte but should give the same counts. The script downloads the
+[DM-Count](https://github.com/cvlab-stonybrook/DM-Count) checkpoint (Wang et al., NeurIPS 2020, VGG-19),
+checks its SHA-256, exports it to ONNX and checks the ONNX output against PyTorch. Use it to rebuild the
+files yourself or to export the SHA checkpoint:
+
+```bash
+pip install torch onnx onnxruntime          # only needed to export
 python scripts/export_density_onnx.py       # -> models/dmcount_qnrf.onnx (+ .json with checksums)
-python scripts/export_density_onnx.py --weights SHB   # sparse street scenes
+python scripts/export_density_onnx.py --weights SHB
 ```
 
 | | Licence |
@@ -111,15 +126,30 @@ images are already 1024 px wide), and Part A, where most images are smaller and 
 
 What this means for safety:
 
-- **The model undercounts the densest scenes.** Above ~1000 heads per image the default checkpoint
-  is about 24% low on average. Undercounting is the dangerous direction, so set alert thresholds with that
-  margin, and fuse cameras with gate counts.
+- **The model undercounts the densest scenes.** On Part A images with 1000-2000 heads, a single image's
+  count is off by 24% on average, and the counts run about 9% low overall. On Part B images with 250+ heads
+  they run 19% low. Undercounting is the dangerous direction, so set alert thresholds with that margin,
+  and fuse cameras with gate counts.
 - Public datasets have no camera calibration, so these buckets are heads per image, not p/m². They
   show the trend, not the error at a given density.
 - Speed: 3-5 s per 1024x768 frame on an Apple M1 CPU. With CoreML, which the edge pipeline picks
   automatically when available, it was 0.47 s, and Part B counts differed from CPU by at most 1.4 heads
-  per image (MAE 14.55 vs 14.35). The pipeline reports about once a second, so CPU-only devices need
-  a smaller `input_width` or a GPU.
+  per image (MAE 14.55 vs 14.35).
+
+**Speed against accuracy.** A smaller input is faster but undercounts dense crowds badly. Default
+QNRF checkpoint, same data, CPU:
+
+| Input width | CPU s/frame (M1) | Part A MAE | Part A bias, 1000+ heads (18 images) | Part B MAE | Part B bias, 250+ heads (30 images) |
+|---|---|---|---|---|---|
+| **1024 (default)** | 3-5 | 71.7 | -8% | 14.4 | -19% |
+| 768 | 2.0 | 82.8 | -16% | 19.0 | -27% |
+| 512 | 0.7 | 105.4 | -34% | 30.4 | -39% |
+
+So `crowdsafe edge` **never lowers the input width on its own**. If the device is too slow for the
+requested interval, it reports less often instead (for example every 6.7 s on a 4 s/frame CPU) and says
+so. A crush builds up over minutes (the demo's RED alert comes 13 minutes before critical density), so a
+slower report is far safer than doubling or quadrupling the undercount in the densest scenes. `--input-width` is a manual override for people who
+have measured the trade-off on their own cameras.
 
 Reproduce:
 

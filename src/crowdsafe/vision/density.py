@@ -14,6 +14,7 @@ docs/vision.md for exporting a pretrained model.
 
 from __future__ import annotations
 
+import time
 from typing import Optional, Protocol
 
 import cv2
@@ -57,6 +58,15 @@ class OnnxDensityModel:
         dm = cv2.resize(out, (w, h), interpolation=cv2.INTER_LINEAR)
         s = float(dm.sum())
         return dm * (total / s) if s > 0 else dm  # resizing must preserve the count
+
+
+    def seconds_per_frame(self, frame_bgr: np.ndarray, runs: int = 2) -> float:
+        """Measure inference time on this device, after one warm-up run (the first is slow)."""
+        self.density_map(frame_bgr)
+        t0 = time.perf_counter()
+        for _ in range(runs):
+            self.density_map(frame_bgr)
+        return (time.perf_counter() - t0) / runs
 
 
 class HogPeopleDetector:
