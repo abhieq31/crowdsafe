@@ -5,7 +5,9 @@
     crowdsafe capacity --area 960 --exit 3 --exit 2.5:stairs
     crowdsafe simulate --scenario pandal_surge [--respond]
     crowdsafe model fetch               # download the default density model (once, checksum verified)
-    crowdsafe check --source rtsp://... --calibration cam.json --server http://...
+    crowdsafe setup                     # once per camera device: questions, each answer tested, then saved
+    crowdsafe check                     # test the saved setup (flags override it)
+    crowdsafe edge                      # run the camera pipeline with the saved setup
     crowdsafe edge --source rtsp://... --calibration cam.json --server http://...
 """
 
@@ -83,7 +85,32 @@ def cmd_serve(a, demo: bool = False) -> int:
     return 0
 
 
+EDGE_DEFAULTS = {"server": "http://127.0.0.1:8000", "model": "auto", "every": 1.0}
+
+
+def _settings(a):
+    """Flags, else the setup saved by ``crowdsafe setup``, else defaults. None if the saved file is damaged."""
+    from . import config
+
+    try:
+        saved = config.load()
+    except config.ConfigError as e:
+        print(e, file=sys.stderr)
+        return None
+    if saved:
+        print(f"Using the saved setup from {config.config_path()} (options you type override it)",
+              file=sys.stderr)
+    return config.merge(a, saved, EDGE_DEFAULTS)
+
+
 def cmd_edge(a) -> int:
+    s = _settings(a)
+    if s is None:
+        return 1
+    if not s["source"] or not s["calibration"]:
+        print("No camera or calibration file given. Run  crowdsafe setup  once, or pass --source and "
+              "--calibration.", file=sys.stderr)
+        return 2
     try:
         from .vision.pipeline import run_edge
     except ImportError as e:
@@ -95,24 +122,36 @@ def cmd_edge(a) -> int:
     try:
         import onnxruntime  # noqa: F401
     except ImportError:
-        if (a.model or "auto").lower() != "hog":
+        if (s["model"] or "auto").lower() != "hog":
             print("The model runtime is missing, so dense crowds cannot be counted. Install it with:\n"
                   "  pip install 'crowdsafe[onnx]'\nor pass --model hog to test with the inaccurate fallback.",
                   file=sys.stderr)
             return 1
     try:
-        model = model_store.resolve(a.model)
+        model = model_store.resolve(s["model"])
     except model_store.FetchError as e:
         print(e, file=sys.stderr)
         return 1
-    return run_edge(a.source, a.calibration, a.server, model=model, every_s=a.every,
-                    token=a.token, show=a.show, input_width=a.input_width or None)
+    return run_edge(s["source"], s["calibration"], s["server"], model=model, every_s=float(s["every"]),
+                    token=s["token"], show=a.show, input_width=a.input_width or None)
 
 
 def cmd_check(a) -> int:
     from .check import run_check
 
-    return run_check(a.source, a.calibration, a.server, model=a.model, token=a.token, every_s=a.every)
+    s = _settings(a)
+    if s is None:
+        return 1
+    flags = any(getattr(a, k) is not None for k in ("source", "calibration", "server", "model", "every", "token"))
+    hint = "crowdsafe edge with the same options" if flags else "crowdsafe edge"
+    return run_check(s["source"], s["calibration"], s["server"], model=s["model"], token=s["token"],
+                     every_s=float(s["every"]), start_hint=hint)
+
+
+def cmd_setup(a) -> int:
+    from .wizard import run_setup
+
+    return run_setup()
 
 
 def cmd_model(a) -> int:
@@ -162,17 +201,19 @@ def main(argv=None) -> int:
 
     model_help = ("density model: auto (default: the dense model, downloaded on first use), dense, sparse, "
                   "hog (inaccurate test fallback), or a path to your own .onnx")
+    sub.add_parser("setup", help="answer a few questions once per camera device; edge and check then need no options")
+    saved = " (default: the answer saved by crowdsafe setup)"
     for name in ("edge", "check"):
-        req = name == "edge"
-        ed = sub.add_parser(name, help="run the camera pipeline on an edge device" if req
+        is_edge = name == "edge"
+        ed = sub.add_parser(name, help="run the camera pipeline on an edge device" if is_edge
                             else "test camera, calibration, model, speed and server before an event")
-        ed.add_argument("--source", required=req, help="RTSP URL, video file, or webcam index")
-        ed.add_argument("--calibration", required=req, help="camera calibration JSON")
-        ed.add_argument("--server", default="http://127.0.0.1:8000")
-        ed.add_argument("--model", default="auto", help=model_help)
-        ed.add_argument("--every", type=float, default=1.0, help="seconds between reports")
-        ed.add_argument("--token")
-        if req:
+        ed.add_argument("--source", help="RTSP URL, video file, or webcam index" + saved)
+        ed.add_argument("--calibration", help="camera calibration JSON" + saved)
+        ed.add_argument("--server", help="control-room address" + saved + ", else http://127.0.0.1:8000")
+        ed.add_argument("--model", help=model_help)
+        ed.add_argument("--every", type=float, help="seconds between reports (default 1)")
+        ed.add_argument("--token", help="access token" + saved)
+        if is_edge:
             ed.add_argument("--input-width", type=int, default=0,
                             help="model input width in px (default 1024); smaller is faster but undercounts")
             ed.add_argument("--show", action="store_true", help="show a local debug window")
@@ -194,6 +235,8 @@ def main(argv=None) -> int:
         return cmd_check(a)
     if a.cmd == "model":
         return cmd_model(a)
+    if a.cmd == "setup":
+        return cmd_setup(a)
     return 2
 
 

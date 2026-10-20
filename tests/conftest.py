@@ -8,6 +8,13 @@ import pytest
 
 
 @pytest.fixture
+def home(tmp_path, monkeypatch):
+    """CROWDSAFE_HOME in a temp folder, so the saved setup and models never touch the real user folders."""
+    monkeypatch.setenv("CROWDSAFE_HOME", str(tmp_path / "home"))
+    return tmp_path / "home"
+
+
+@pytest.fixture
 def stub_server():
     """A tiny HTTP server: routes maps path -> (status, bytes). POST bodies are recorded."""
     routes, posts = {}, []
