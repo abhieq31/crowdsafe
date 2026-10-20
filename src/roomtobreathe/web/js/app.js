@@ -464,6 +464,8 @@ function plan() {
     <ul class="factors">${risk.factors.map((x) => `<li><span class="pts">+${x.points}</span><b>${esc(x.finding)}</b><div class="rec">→ ${esc(x.recommendation)}</div></li>`).join("")}</ul>`;
 }
 $("#cap-form").addEventListener("input", plan);
+// These forms update as you type; Enter must not submit them (that reloads the page and loses the answers).
+for (const id of ["#cap-form", "#risk-form"]) $(id).addEventListener("submit", (e) => { e.preventDefault(); plan(); });
 $("#risk-form").addEventListener("input", plan);
 $("#risk-form").addEventListener("change", plan);
 $("#print-plan").onclick = () => window.print();
