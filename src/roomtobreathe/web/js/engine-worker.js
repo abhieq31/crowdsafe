@@ -12,7 +12,7 @@ async function start() {
   const manifest = await (await fetch(new URL("../py/wheel.json", self.location.href))).json();
   postMessage({ status: "Loading the Room to Breathe engine…" });
   await py.pyimport("micropip").install(new URL("../py/" + manifest.wheel, self.location.href).href, { deps: false });
-  py.runPython("import json\nfrom roomtobreathe.whatif import describe, run_whatif");
+  py.runPython("import json\nfrom roomtobreathe.whatif import describe, run_whatif\nfrom roomtobreathe.assess import assess_event");
   return py;
 }
 
@@ -20,10 +20,16 @@ self.onmessage = async (e) => {
   try {
     ready = ready || start();
     const py = await ready;
-    postMessage({ status: "Simulating the crowd, twice (nobody acts, then with the playbook)…" });
     py.globals.set("venue_json", JSON.stringify(e.data.venue));
     py.globals.set("params_json", JSON.stringify(e.data.params));
-    const out = py.runPython("r = run_whatif(json.loads(venue_json), json.loads(params_json))\nr['conclusions'] = describe(r)\njson.dumps(r)");
+    let out;
+    if (e.data.kind === "assess") {
+      postMessage({ status: "Checking capacity, arrival, a surge and an evacuation…" });
+      out = py.runPython("p = json.loads(params_json)\njson.dumps(assess_event(json.loads(venue_json), p['attendance'], p.get('arrival_minutes') or 60))");
+    } else {
+      postMessage({ status: "Simulating the crowd, twice (nobody acts, then with the playbook)…" });
+      out = py.runPython("r = run_whatif(json.loads(venue_json), json.loads(params_json))\nr['conclusions'] = describe(r)\njson.dumps(r)");
+    }
     postMessage({ result: JSON.parse(out) });
   } catch (err) {
     ready = null;

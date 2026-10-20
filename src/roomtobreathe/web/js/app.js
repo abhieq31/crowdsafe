@@ -80,13 +80,13 @@ async function boot() {
     online = true;
   } catch {
     setConn(false);
-    $("#venue-name").textContent = "No control-room server: What if, Photo count, Plan and Gate counter work here.";
+    $("#venue-name").textContent = "No control-room server on this page.";
     $("#live-offline").hidden = false;
     for (const el of document.querySelectorAll("#tab-live > :not(#live-offline)")) el.style.display = "none";
     $("#who").style.display = "none"; // nothing to sign in to without a control-room server
-    $("#conn").textContent = "web app";
-    $("#conn").title = "Running in this browser. Nothing you enter leaves this device.";
-    if (firstVisit) showTab("whatif");
+    $("#conn").hidden = true;
+    $('.tabs [data-tab="live"]').hidden = true; // live monitoring needs the venue's own computer
+    if (firstVisit || store.get("tab", "") === "live") showTab("whatif");
     initWhatIf({ online: false });
     return;
   }

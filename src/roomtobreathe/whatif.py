@@ -122,8 +122,13 @@ def build_scenario(venue: Venue, w: WhatIf) -> Scenario:
                     dwell_s=stay, events=events)
 
 
-def _run(venue: Venue, w: WhatIf, respond: bool, sample_s: float = 30.0) -> dict:
-    e = Engine(venue)
+def simulate(venue: Venue, w: WhatIf, respond: bool, sample_s: float = 30.0,
+             with_alerts: bool = True) -> dict:
+    """Run one scenario. ``with_alerts=False`` runs only the crowd physics (no alert engine), about 4x faster,
+    for questions that need densities and times but not what operators would see."""
+    # A private copy: approved actions close gates on the engine's venue, and that must not leak into
+    # the next simulation (a closed entry would leave the next run's venue empty).
+    e = Engine(copy.deepcopy(venue))
     e.start_demo(build_scenario(venue, w))
     zones = list(venue.zones)
     series = {"t_min": [], **{z: [] for z in zones}}
@@ -134,7 +139,9 @@ def _run(venue: Venue, w: WhatIf, respond: bool, sample_s: float = 30.0) -> dict
     evac_t = w.evacuate_at_min * 60 if w.evacuate_at_min is not None else None
     evac_start_occ = cleared_min = None
     for i in range(steps):
-        for al in e.tick():
+        if not with_alerts:
+            e.sim.step()
+        for al in (e.tick() if with_alerts else ()):
             t_min = round(e.sim.t / 60, 2)
             alerts.append({"t_min": t_min, "zone": al.zone_id, "zone_name": al.zone_name, "level": al.level,
                            "previous": al.previous, "reasons": al.reasons})
@@ -190,8 +197,8 @@ def run_whatif(venue_dict: dict, params: dict) -> dict:
         "safe_capacity": cap.safe_capacity,
         "limiting_factor": cap.limiting_factor,
         "findings": cap.findings + venue_problems(venue) + notes,
-        "no_response": _run(sim_venue, w, respond=False),
-        "with_response": _run(sim_venue, w, respond=True),
+        "no_response": simulate(sim_venue, w, respond=False),
+        "with_response": simulate(sim_venue, w, respond=True),
     }
 
 

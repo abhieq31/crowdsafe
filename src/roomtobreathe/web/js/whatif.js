@@ -21,6 +21,7 @@ let useServer = false;
 let worker = null;
 let pending = null;
 let last = null;
+let statusEl = "#wi-status"; // where engine progress messages go
 
 const slug = (name, taken) => {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "zone";
@@ -35,8 +36,10 @@ export function parseArea(t) {
 }
 
 // ------------------------------------------------------------------ venue builder
-const blankVenue = () => ({
-  name: "", zones: [{ name: "Main ground", area: "60 x 40", usable: 80 }],
+const blankVenue = () => ({ name: "", zones: [], gates: [] });
+// "Type the sizes" starts from a filled-in example row so people see what to write.
+const sizesTemplate = () => ({
+  zones: [{ name: "Main ground", area: "60 x 40", usable: 80 }],
   gates: [{ name: "Main gate", from: "outside", to: 0, width: 6, stairs: false, closed: false },
           { name: "Exit", from: 0, to: "outside", width: 4, stairs: false, closed: false }],
 });
@@ -125,6 +128,12 @@ function refreshVenue() {
   const keep = sel.value;
   sel.innerHTML = `<option value="">no gate blocked</option>` + (venue?.gates || []).map((g) => `<option value="${esc(g.id)}">${esc(g.id)} · ${esc(g.name)} (${g.width_m} m)</option>`).join("");
   sel.value = (venue?.gates || []).some((g) => g.id === keep) ? keep : "";
+  if ($("#wi-src").value === "custom" && !draft.zones.length) {
+    out.innerHTML = `<p class="muted">${store.get("wi-mode", "map") === "map"
+      ? "Search for the place, then trace the area where people will stand."
+      : "Add the areas where people will stand, and every way in and out."}</p>`;
+    return;
+  }
   if (!venue) { out.innerHTML = problems.map((p) => `<p class="err">${esc(p)}</p>`).join(""); return; }
   const zoneArea = (z) => z.usable_area_m2
     ?? (z.area_m2 ?? (z.polygon?.length ? polygonArea(z.polygon) : 0)) * (z.usable_fraction ?? 1);
@@ -138,7 +147,7 @@ function engineWorker() {
   if (!worker) {
     worker = new Worker(new URL("engine-worker.js", import.meta.url));
     worker.onmessage = (e) => {
-      if (e.data.status) { $("#wi-status").textContent = e.data.status; return; }
+      if (e.data.status) { $(statusEl).textContent = e.data.status; return; }
       const p = pending; pending = null;
       if (!p) return;
       e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.result);
@@ -147,16 +156,17 @@ function engineWorker() {
   }
   return worker;
 }
-async function runEngine(venue, params) {
+async function runEngine(venue, params, kind = "whatif") {
   if (useServer) {
-    const r = await fetch("api/whatif", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ venue, params }) });
+    const body = kind === "assess" ? { venue, ...params } : { venue, params };
+    const r = await fetch(`api/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
     return r.json();
   }
   if (pending) throw new Error("a what-if is already running");
   return new Promise((resolve, reject) => {
     pending = { resolve, reject };
-    engineWorker().postMessage({ venue, params });
+    engineWorker().postMessage({ kind, venue, params });
   });
 }
 
@@ -237,13 +247,14 @@ async function run(e) {
   if (problems.length || !venue) { $("#wi-status").textContent = problems[0] || "Choose a venue."; return; }
   const params = readParams();
   $("#wi-run").disabled = true;
+  statusEl = "#wi-status";
   const t0 = performance.now();
   $("#wi-status").textContent = useServer ? "Running on the control-room server…" : "Starting the engine in your browser (first time: about 10 MB)…";
   try {
     const r = await runEngine(venue, params);
     renderResults(r, venue);
     $("#wi-status").textContent = `Done in ${((performance.now() - t0) / 1000).toFixed(1)} s.`;
-    $("#wi-results").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#wi-results").scrollIntoView({ block: "start" });
   } catch (err) {
     $("#wi-status").textContent = `Could not run: ${err.message}`;
   } finally {
@@ -251,24 +262,99 @@ async function run(e) {
   }
 }
 
+// ------------------------------------------------------------------ the verdict
+const ICON = { pass: "✓", warn: "!", fail: "✕" };
+function renderVerdict(r, venue) {
+  const box = $("#as-result");
+  const checks = r.checks.map((c) => `<li class="c-${c.level}"><span class="c-icon" aria-hidden="true">${ICON[c.level]}</span>
+    <div><b>${esc(c.title)}</b><div class="small">${esc(c.detail)}</div></div></li>`).join("");
+  const fixes = r.fixes.length ? `<h3>What to do</h3><ol class="fixes">${r.fixes.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>` : "";
+  const surge = r.surge;
+  box.innerHTML = `
+    <div class="verdict-big v-${r.verdict}">
+      <span class="v-icon" aria-hidden="true">${ICON[r.verdict]}</span>
+      <div><div class="v-head">${esc(r.headline)}</div>
+        <div class="v-sub">${esc(r.venue)} · safe capacity ${r.safe_capacity.toLocaleString()} · arriving over ${fmt(r.arrival_minutes, 0)} min</div></div>
+    </div>
+    <ul class="checks">${checks}</ul>
+    ${fixes}
+    <details class="more"><summary>See a surge minute by minute</summary>
+      <p class="small muted">Arrivals jump 2.5× a third of the way in. Left: nobody acts. Right: operators approve the
+        response plan at the first RED alert.</p>
+      <div class="grid plan-grid">${chart(surge.no_response, venue, "Nobody acts")}${chart(surge.with_response, venue, "With the response plan")}</div>
+    </details>
+    <div class="btns">
+      <button type="button" id="as-save" class="primary">Save this venue</button>
+      <button type="button" class="link" data-goto="count">On the day: count people at the gates →</button>
+    </div>
+    <p class="small muted">Decision support, not a guarantee: a model of people per zone and flow through gates. Walk the
+      site, rehearse your response, and recheck if anything changes.</p>`;
+  box.hidden = false;
+  $("#as-save").addEventListener("click", () => $("#wi-download").click());
+}
+
+async function check(e) {
+  e.preventDefault();
+  const { venue, problems } = currentVenue();
+  const status = $("#as-status");
+  if (problems.length || !venue) { status.textContent = problems[0] || "First tell us where the event is (step 1)."; return; }
+  const f = new FormData($("#as-form"));
+  const attendance = Number(f.get("attendance")), arrival_minutes = Number(f.get("arrival_minutes"));
+  if (!(attendance > 0)) { status.textContent = "Type how many people you expect."; return; }
+  store.set("as-people", attendance);
+  // the expert form starts from the same numbers
+  $('#wi-form [name="attendance"]').value = attendance;
+  $('#wi-form [name="arrival_minutes"]').value = arrival_minutes;
+  $("#as-run").disabled = true;
+  statusEl = "#as-status";
+  const t0 = performance.now();
+  status.textContent = useServer ? "Checking…" : "Checking in your browser. The first time takes a little longer…";
+  try {
+    const r = await runEngine(venue, { attendance, arrival_minutes }, "assess");
+    renderVerdict(r, venue);
+    status.textContent = `Checked in ${((performance.now() - t0) / 1000).toFixed(0)} s.`;
+    $("#as-result").scrollIntoView({ block: "start" });
+  } catch (err) {
+    status.textContent = `Could not check: ${err.message}`;
+  } finally {
+    $("#as-run").disabled = false;
+  }
+}
+
 export async function initWhatIf({ online }) {
   useServer = online;
   if (online) serverVenue = await fetch("api/venue").then((r) => r.json()).catch(() => null);
   demoVenue = await fetch(new URL("../data/pandal.json", import.meta.url)).then((r) => r.json()).catch(() => null);
-  if (serverVenue) $('#wi-src option[value="demo"]').textContent = `This control room: ${serverVenue.name}`;
-  $("#wi-src").value = store.get("wi-src", "demo");
-  const showSrc = () => {
-    $("#wi-builder").hidden = $("#wi-src").value !== "custom";
-    store.set("wi-src", $("#wi-src").value);
-    if ($("#wi-src").value === "file" && !fileVenue) $("#wi-file").click();
+  if (serverVenue) {
+    const b = $('.choice-btn[data-src="demo"]');
+    b.querySelector("b").textContent = "This control room's venue";
+    b.querySelector("span").textContent = serverVenue.name;
+  }
+  const setMode = (mode) => {
+    $("#wi-src").value = mode === "demo" ? "demo" : mode === "file" ? "file" : "custom";
+    store.set("wi-mode", mode);
+    for (const b of document.querySelectorAll(".choice-btn")) b.setAttribute("aria-pressed", String(b.dataset.src === mode));
+    $("#wi-builder").hidden = !(mode === "map" || mode === "sizes");
+    if (mode === "sizes" && !draft.zones.length && !draft.gates.length) {
+      Object.assign(draft, sizesTemplate());
+      store.set("wi-draft", draft);
+      renderBuilder();
+    }
+    $("#wi-map-panel").hidden = mode !== "map";
+    if (mode === "map") {
+      openMap(draft, () => { store.set("wi-draft", draft); renderBuilder(); refreshVenue(); })
+        .catch((err) => { $("#wi-map-help").textContent = `The map could not load: ${err.message}`; });
+    }
     refreshVenue();
   };
-  $("#wi-src").addEventListener("change", showSrc);
+  const showSrc = () => setMode(store.get("wi-mode", "map"));
+  for (const b of document.querySelectorAll(".choice-btn")) b.addEventListener("click", () => setMode(b.dataset.src));
+  $("#wi-load").addEventListener("click", () => $("#wi-file").click());
   $("#wi-file").addEventListener("change", async () => {
     const f = $("#wi-file").files[0];
     if (!f) return;
     try { fileVenue = JSON.parse(await f.text()); store.set("wi-file-venue", fileVenue); } catch { fileVenue = null; $("#wi-venue-out").innerHTML = `<p class="err">That is not a venue file.</p>`; return; }
-    refreshVenue();
+    setMode("file");
   });
   $("#wi-name").addEventListener("input", (e) => { draft.name = e.target.value; store.set("wi-draft", draft); refreshVenue(); });
   $("#wi-zones").addEventListener("change", onBuilderInput);
@@ -306,11 +392,10 @@ export async function initWhatIf({ online }) {
     a.click();
     URL.revokeObjectURL(a.href);
   });
-  $("#wi-map-open").addEventListener("click", () => {
-    openMap(draft, () => { store.set("wi-draft", draft); renderBuilder(); refreshVenue(); })
-      .catch((err) => { $("#wi-map-help").textContent = `The map could not load: ${err.message}`; });
-  });
   $("#wi-form").addEventListener("submit", run);
+  $("#as-form").addEventListener("submit", check);
+  const saved = store.get("as-people", null);
+  if (saved) $('#as-form [name="attendance"]').value = saved;
   renderBuilder();
   showSrc();
 }

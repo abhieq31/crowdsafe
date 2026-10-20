@@ -139,7 +139,8 @@ async function search(e) {
     if (!hit) { help(`No place called "${q}" found. Try a nearby town or landmark.`); return; }
     const [s, n, w, ea] = hit.boundingbox.map(Number);
     map.fitBounds([[s, w], [n, ea]], { maxZoom: 18 });
-    help(`Showing ${hit.display_name}. Zoom in until you can see the ground, then draw the zones.`);
+    if (!draft.name) { draft.name = hit.display_name.split(",")[0]; changedOnly(); }
+    help(`Found ${hit.display_name.split(",").slice(0, 2).join(",")}. Now press Draw a zone and tap the corners of the area where people will stand.`);
   } catch {
     help("Search is not available right now. Pan and zoom the map instead.");
   }

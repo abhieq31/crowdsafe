@@ -3,6 +3,7 @@
     roomtobreathe demo                      # dashboard + simulated surge at http://localhost:8000
     roomtobreathe serve --venue v.json      # live mode: edge devices POST observations
     roomtobreathe venue new                 # describe the venue in plain questions -> venue.json
+    roomtobreathe assess venue.json --people 12000      # is it safe? verdict, reasons, what to change
     roomtobreathe whatif venue.json --attendance 12000 --evacuate-at-min 60
     roomtobreathe capacity --area 960 --exit 3 --exit 2.5:stairs
     roomtobreathe simulate --scenario pandal_surge [--respond]
@@ -185,6 +186,30 @@ def cmd_venue(a) -> int:
     return 1 if summarise(venue) else 0
 
 
+def cmd_assess(a) -> int:
+    from .assess import assess_event
+    from .venue import default_venue
+
+    try:
+        venue = json.loads(open(a.venue, encoding="utf-8").read()) if a.venue else default_venue().to_dict()
+    except (OSError, ValueError) as e:
+        print(f"Cannot read {a.venue}: {e}", file=sys.stderr)
+        return 1
+    r = assess_event(venue, a.people, a.arrival_minutes)
+    if a.json:
+        print(json.dumps(r, indent=2, ensure_ascii=False))
+        return 0
+    mark = {"pass": "OK  ", "warn": "WARN", "fail": "FAIL"}
+    print(f"{r['venue']}: {r['headline'].upper()}\n")
+    for c in r["checks"]:
+        print(f"  [{mark[c['level']]}] {c['title']}\n         {c['detail']}")
+    if r["fixes"]:
+        print("\nWhat to do:")
+        for f in r["fixes"]:
+            print(f"  - {f}")
+    return {"pass": 0, "warn": 0, "fail": 1}[r["verdict"]]
+
+
 def cmd_whatif(a) -> int:
     from .venue import default_venue
     from .whatif import describe, run_whatif
@@ -299,6 +324,12 @@ def main(argv=None) -> int:
                             help="model input width in px (default 1024); smaller is faster but undercounts")
             ed.add_argument("--show", action="store_true", help="show a local debug window")
 
+    asx = sub.add_parser("assess", help="is this event safe for this many people? verdict, reasons, fixes")
+    asx.add_argument("venue", nargs="?", help="venue JSON (default: the demo venue)")
+    asx.add_argument("--people", type=int, required=True, help="people expected")
+    asx.add_argument("--arrival-minutes", type=float, default=60.0, help="over how many minutes they arrive")
+    asx.add_argument("--json", action="store_true")
+
     wi = sub.add_parser("whatif", help="what if N people come, a surge starts, a gate blocks, or all must leave")
     wi.add_argument("venue", nargs="?", help="venue JSON (default: the demo venue)")
     wi.add_argument("--attendance", type=int, required=True, help="people arriving")
@@ -338,6 +369,8 @@ def main(argv=None) -> int:
         return cmd_venue(a)
     if a.cmd == "whatif":
         return cmd_whatif(a)
+    if a.cmd == "assess":
+        return cmd_assess(a)
     if a.cmd == "setup":
         return cmd_setup(a)
     return 2
