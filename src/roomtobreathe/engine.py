@@ -83,11 +83,13 @@ class Engine:
         return entry
 
     # --- demo ------------------------------------------------------------
-    def start_demo(self, scenario: str = "pandal_surge") -> None:
+    def start_demo(self, scenario="pandal_surge") -> None:
+        """Run the simulator. ``scenario`` is a built-in scenario name or a ``Scenario`` object."""
         self._reset()
-        self.sim = FlowSimulator(self.venue, load_scenario(scenario))
+        sc = load_scenario(scenario) if isinstance(scenario, str) else scenario
+        self.sim = FlowSimulator(self.venue, sc)
         self.sim_start = time.time()
-        self._record("demo_start", scenario=scenario)
+        self._record("demo_start", scenario=sc.name)
 
     def stop_demo(self) -> None:
         self._record("demo_stop")

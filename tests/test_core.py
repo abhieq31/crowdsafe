@@ -269,3 +269,12 @@ def test_sent_at_corrects_device_clock_but_keeps_backlog_age():
     assert server_time(sent_at, sent_at, now) == now  # a fresh reading is fresh, not 5 minutes old
     assert server_time(sent_at - 60, sent_at, now) == now - 60  # held 60 s in the backlog: 60 s old
     assert server_time(None, sent_at, now) is None
+
+
+def test_venue_round_trip_keeps_usable_area():
+    from roomtobreathe.venue import Venue, default_venue
+
+    v = default_venue()
+    again = Venue.from_dict(json.loads(json.dumps(v.to_dict())))
+    for zid, z in v.zones.items():
+        assert again.zones[zid].usable_area == pytest.approx(z.usable_area)  # usable_fraction applied once

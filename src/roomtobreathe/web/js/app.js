@@ -144,7 +144,7 @@ function schematic(v) {
   let x = 0;
   for (const id of order) {
     const z = v.zones.find((q) => q.id === id);
-    const side = Math.sqrt(Math.max(1, z.area_m2 / (z.usable_fraction || 1)));
+    const side = Math.sqrt(Math.max(1, z.area_m2));
     z.polygon = [[x, 0], [x + side, 0], [x + side, side], [x, side]];
     x += side;
   }

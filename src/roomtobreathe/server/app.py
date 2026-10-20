@@ -170,6 +170,18 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
             raise HTTPException(404, "no event record for that day")
         return list(event_log.read(day))
 
+    @app.post("/api/whatif")
+    def whatif(body: dict):
+        """Run a what-if study (see roomtobreathe.whatif). Read-only: it never touches the live engine."""
+        from ..whatif import describe, run_whatif
+
+        try:
+            r = run_whatif(body.get("venue") or engine.venue.to_dict(), body.get("params") or {})
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(400, f"invalid what-if: {e}") from e
+        r["conclusions"] = describe(r)
+        return r
+
     @app.get("/api/alerts/{alert_id}/cap")
     def alert_cap(alert_id: str):
         for a in engine.alerts.history:

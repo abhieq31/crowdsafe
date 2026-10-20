@@ -3,6 +3,7 @@
     roomtobreathe demo                      # dashboard + simulated surge at http://localhost:8000
     roomtobreathe serve --venue v.json      # live mode: edge devices POST observations
     roomtobreathe venue new                 # describe the venue in plain questions -> venue.json
+    roomtobreathe whatif venue.json --attendance 12000 --evacuate-at-min 60
     roomtobreathe capacity --area 960 --exit 3 --exit 2.5:stairs
     roomtobreathe simulate --scenario pandal_surge [--respond]
     roomtobreathe model fetch               # download the default density model (once, checksum verified)
@@ -184,6 +185,37 @@ def cmd_venue(a) -> int:
     return 1 if summarise(venue) else 0
 
 
+def cmd_whatif(a) -> int:
+    from .venue import default_venue
+    from .whatif import describe, run_whatif
+
+    try:
+        venue = json.loads(open(a.venue, encoding="utf-8").read()) if a.venue else default_venue().to_dict()
+    except (OSError, ValueError) as e:
+        print(f"Cannot read {a.venue}: {e}", file=sys.stderr)
+        return 1
+    params = {k: v for k, v in vars(a).items() if k in (
+        "attendance", "arrival_minutes", "minutes", "surge_at_min", "surge_multiplier", "blocked_gate",
+        "blocked_at_min", "blocked_to", "evacuate_at_min")}
+    r = run_whatif(venue, params)
+    if a.json:
+        print(json.dumps(r, indent=2, ensure_ascii=False))
+        return 0
+    print(f"{r['venue']}: {a.attendance:,} people over {a.arrival_minutes:g} min; safe capacity "
+          f"{r['safe_capacity']:,} ({r['limiting_factor']})")
+    for f in r["findings"]:
+        print(f"  ! {f}")
+    print()
+    for line in describe(r):
+        print(f"* {line}")
+    print("\nzone                       peak p/m2   at min   ORANGE   RED   critical   (no response)")
+    for s in r["no_response"]["summary"]:
+        cell = lambda v: "-" if v is None else f"{v:g}"  # noqa: E731
+        print(f"{s['zone_name'][:26]:<26} {s['peak_density']:>9.2f} {s['peak_at_min']:>8.1f} "
+              f"{cell(s['first_orange_min']):>8} {cell(s['first_red_min']):>5} {cell(s['critical_at_min']):>10}")
+    return 0
+
+
 def cmd_check(a) -> int:
     from .check import run_check
 
@@ -267,6 +299,19 @@ def main(argv=None) -> int:
                             help="model input width in px (default 1024); smaller is faster but undercounts")
             ed.add_argument("--show", action="store_true", help="show a local debug window")
 
+    wi = sub.add_parser("whatif", help="what if N people come, a surge starts, a gate blocks, or all must leave")
+    wi.add_argument("venue", nargs="?", help="venue JSON (default: the demo venue)")
+    wi.add_argument("--attendance", type=int, required=True, help="people arriving")
+    wi.add_argument("--arrival-minutes", type=float, default=60.0, help="over how many minutes they arrive")
+    wi.add_argument("--minutes", type=float, default=90.0, help="how long to simulate")
+    wi.add_argument("--surge-at-min", type=float, help="arrivals jump at this minute (free distribution, VIP)")
+    wi.add_argument("--surge-multiplier", type=float, default=2.5)
+    wi.add_argument("--blocked-gate", help="gate id whose flow drops, e.g. G4")
+    wi.add_argument("--blocked-at-min", type=float, default=10.0)
+    wi.add_argument("--blocked-to", type=float, default=0.3, help="share of normal flow left (0-1)")
+    wi.add_argument("--evacuate-at-min", type=float, help="everyone tries to leave at this minute")
+    wi.add_argument("--json", action="store_true")
+
     vn = sub.add_parser("venue", help="create a venue file by answering questions, or check one")
     vn.add_argument("action", choices=["new", "check"])
     vn.add_argument("file", nargs="?", help="venue JSON (new: default venue.json)")
@@ -291,6 +336,8 @@ def main(argv=None) -> int:
         return cmd_model(a)
     if a.cmd == "venue":
         return cmd_venue(a)
+    if a.cmd == "whatif":
+        return cmd_whatif(a)
     if a.cmd == "setup":
         return cmd_setup(a)
     return 2

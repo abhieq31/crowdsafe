@@ -156,7 +156,10 @@ class Venue:
                     "id": z.id,
                     "name": z.name,
                     "polygon": [list(p) for p in z.polygon],
-                    "area_m2": round(z.usable_area, 2),
+                    # The raw area: usable_fraction is applied on load, so writing the usable area
+                    # here would apply it twice on every save/load round trip.
+                    "area_m2": round(z.area_m2 if z.area_m2 is not None else polygon_area(z.polygon), 2),
+                    "usable_area_m2": round(z.usable_area, 2),
                     "usable_fraction": z.usable_fraction,
                     "terrain": z.terrain,
                     "thresholds": z.thresholds.__dict__,
