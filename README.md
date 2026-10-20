@@ -121,19 +121,30 @@ crowdsafe serve --venue my_venue.json --host 0.0.0.0     # set CROWDSAFE_TOKEN t
 
 ```bash
 pip install -e ".[vision,onnx]"
-crowdsafe model fetch                                    # once: 86 MB density model, checksum verified
-crowdsafe check --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000
-crowdsafe edge  --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000
+crowdsafe setup     # once: camera, calibration file, control-room address, token, model
+crowdsafe check     # the day before the event
+crowdsafe edge      # on the day
 ```
 
-1. `cam1.json` maps the camera's picture to the ground in metres, once per camera. See
+1. `crowdsafe setup` asks one question at a time in plain words and tests each answer straight away, so a
+   wrong camera address or password shows up while you are still standing next to the camera. It offers to
+   download the 86 MB density model (checksum verified). Run it again to change an answer: press Enter to
+   keep the ones that are fine.
+2. The answers are saved on this device only, in your user's settings folder (`crowdsafe setup` prints
+   where: `~/.config/crowdsafe/edge.json` on Linux, `~/Library/Application Support/crowdsafe/` on macOS,
+   `%APPDATA%\crowdsafe\` on Windows). The access token is typed hidden, never printed, and the file can
+   only be read by your user account. Set `CROWDSAFE_HOME` to keep it somewhere else.
+3. Options you type always win over the saved answers, e.g. `crowdsafe edge --source 1` to try another camera,
+   or the full form without any setup:
+   `crowdsafe edge --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000`.
+4. The calibration file maps the camera's picture to the ground in metres, once per camera. See
    [docs/vision.md](docs/vision.md#1-calibrate-each-camera-once).
-2. **Run `crowdsafe check` the day before the event.** It tests the camera, the calibration, the model, this
+5. **Run `crowdsafe check` the day before the event.** It tests the camera, the calibration, the model, this
    device's speed and the connection to the control room. Every problem comes with a fix in plain words.
    It also catches the most common silent mistake: a zone name that doesn't match the venue file.
-3. `crowdsafe edge` measures the device's speed. On a slow device it reports less often and says so, instead
+6. `crowdsafe edge` measures the device's speed. On a slow device it reports less often and says so, instead
    of quietly falling behind. It never shrinks the picture to go faster, because that undercounts dense crowds.
-4. No internet at the venue? Run `crowdsafe model fetch` anywhere and copy the `models` folder it prints
+7. No internet at the venue? Run `crowdsafe model fetch` anywhere and copy the `models` folder it prints
    (`crowdsafe model list`) to the device.
 
 Any sensor can post to the API:
@@ -153,7 +164,7 @@ API docs: `http://localhost:8000/docs`.
 pip install -e ".[dev]"
 pytest              # physics, planning, fusion, alerts, CAP, end-to-end sims, API, vision, setup tools
 node --test tests/js/*.test.mjs
-ruff check src tests
+ruff check src tests scripts
 docker compose up   # demo in a container
 ```
 
