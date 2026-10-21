@@ -301,11 +301,11 @@
   <!-- COUNT ----------------------------------------------------------- -->
   <main id="tab-count" class="tab">
     <section class="card counter">
-      <h2>Gate counter (Tier 0)</h2>
-      <p class="muted small">For volunteers at a gate. Tap for every person in or out. Saved on this phone, and sent to the server when one is connected.</p>
+      <h2>Gate counter</h2>
+      <p class="muted small">For volunteers at a gate. Tap for every person in or out. The count is saved on this phone<span id="cnt-sent">, and sent to the control room</span>.</p>
       <div class="form two">
         <label>Permitted capacity <input id="cnt-permit" type="number" min="1" value="2500"></label>
-        <label>Report to zone (optional) <select id="cnt-zone"><option value="">-</option></select></label>
+        <label id="cnt-zone-row">Report to zone (optional) <select id="cnt-zone"><option value="">-</option></select></label>
       </div>
       <div class="cnt-display" id="cnt-display">0</div>
       <div class="occ-bar big"><div id="cnt-fill"></div></div>
