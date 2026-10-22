@@ -195,8 +195,9 @@ class StreetNetwork:
     def from_overpass(
         cls, data: dict, origin: Tuple[float, float], overrides: Optional[Dict[str, dict]] = None
     ) -> "StreetNetwork":
-        """Build the network. ``overrides`` maps an OSM way id (as text) to corrections from people who
-        know the place: ``walk_width`` / ``road_width`` in metres, ``closed_to_traffic``, ``no_walk``."""
+        """Build the network. ``overrides`` maps an OSM way id (as text), or ``"name:<street name>"`` for every
+        segment of a named street, to corrections from people who know the place: ``walk_width`` /
+        ``road_width`` in metres, ``closed_to_traffic``, ``no_walk``."""
         net = cls(origin)
         overrides = overrides or {}
         els = data.get("elements", [])
@@ -212,7 +213,12 @@ class StreetNetwork:
             if rt is None or tags.get("area") == "yes":
                 continue
             n_ways += 1
-            ov = overrides.get(str(e["id"]), {})
+            # A correction is for one map segment (its way id) or a whole named street ("name:Strand Road").
+            ov = (
+                {**overrides.get(f"name:{tags.get('name', '')}", {}), **overrides.get(str(e["id"]), {})}
+                if overrides
+                else {}
+            )
             walk = rt.walk and tags.get("foot") != "no" and tags.get("access") not in ("no",)
             if tags.get("foot") in ("yes", "designated"):
                 walk = True
@@ -275,6 +281,7 @@ class StreetNetwork:
                 )
                 net.edges.append(edge)
         net._index()
+        net._apply_name_corrections(overrides or {})
         net._read_pois(els)
         net.radius = max((math.hypot(*p) for p in net.nodes.values()), default=0.0)
         if n_ways and widths_known / n_ways < 0.3:
@@ -284,6 +291,31 @@ class StreetNetwork:
                 "routes on the ground and correct them."
             )
         return net
+
+    def _apply_name_corrections(self, overrides: Dict[str, dict]) -> None:
+        """Street-name corrections also cover the unnamed stretches that belong to the street (OSM often
+        leaves split sections unnamed; ``street_name`` infers them)."""
+        named = {k[5:]: v for k, v in overrides.items() if k.startswith("name:")}
+        if not named:
+            return
+        changed = False
+        for e in self.edges:
+            if e.name or str(e.way) in overrides:
+                continue
+            ov = named.get(self.street_name(e.id))
+            if not ov:
+                continue
+            if "walk_width" in ov:
+                e.walk_width, e.estimated_width = max(0.0, float(ov["walk_width"])), False
+            if "road_width" in ov:
+                e.road_width = max(0.0, float(ov["road_width"]))
+            if ov.get("no_walk"):
+                e.walk = False
+            if ov.get("closed_to_traffic"):
+                e.closed_to_traffic = True
+            changed = True
+        if changed:
+            self._index()
 
     def _index(self) -> None:
         self.walk_adj = {n: [] for n in self.nodes}

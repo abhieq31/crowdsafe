@@ -457,3 +457,30 @@ def test_briefing_sheets_and_csv(big, tmp_path):
     main(["overview", str(vf), "--people", "20000", "--osm", str(of), "--radius", "420", "--briefings", str(out)])
     names = sorted(p.name for p in out.iterdir())
     assert "posts.csv" in names and "briefing-traffic-police.html" in names and "briefing-health.html" in names
+
+
+def test_a_correction_by_name_covers_the_whole_street():
+    v = venue()
+    v["surroundings"] = {"overrides": {"name:Main Road": {"walk_width": 11}}}
+    r = event_overview(v, 5000, town(), radius_m=420)
+    main = [f["properties"] for f in r["geojson"]["features"] if f["properties"].get("street") == "Main Road"]
+    assert main and all(p["walk_width_m"] == 11 and not p["width_estimated"] for p in main)
+
+
+def test_fixes_match_the_phase():
+    base = {"walk_width_m": 2.0, "public_ppm": 10, "event_ppm": 400, "drivable": False, "closed_to_traffic": False,
+            "road_width_m": 0, "load": 2.5, "street": "X", "los": "F"}
+    assert D.choke_fixes(dict(base, phase="arrival"), 60)[0].startswith("Spread arrivals")
+    assert D.choke_fixes(dict(base, phase="departure"), 30)[0].startswith("Stagger the exit")
+
+
+def test_name_correction_covers_unnamed_stretches_of_the_street():
+    data = town()
+    # Split "Main Road" in two and leave the second half unnamed, as OpenStreetMap often does.
+    way = next(e for e in data["elements"] if e["type"] == "way" and e["tags"].get("name") == "Main Road")
+    half = len(way["nodes"]) // 2
+    data["elements"].append({"type": "way", "id": 5555, "nodes": way["nodes"][half:], "tags": {"highway": "primary"}})
+    way["nodes"] = way["nodes"][: half + 1]
+    net = StreetNetwork.from_overpass(data, ORIGIN, {"name:Main Road": {"walk_width": 9}})
+    unnamed = [e for e in net.edges if e.way == 5555]
+    assert unnamed and all(e.walk_width == 9 and not e.estimated_width for e in unnamed)

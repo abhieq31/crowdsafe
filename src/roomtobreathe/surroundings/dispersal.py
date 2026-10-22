@@ -384,9 +384,11 @@ def choke_fixes(s: dict, window_min: float) -> List[str]:
     if s["event_ppm"] > 0 and room > 0:
         need = window_min * s["event_ppm"] / room
         if need > window_min:
+            mins = f"about {math.ceil(need / 5) * 5:.0f} minutes instead of {window_min:g}"
             fixes.append(
-                f"Stagger the exit: spread departures over about {math.ceil(need / 5) * 5:.0f} minutes "
-                f"instead of {window_min:g} (release stands or blocks in turn)."
+                f"Spread arrivals over {mins}: open the gates earlier, timed entry or tickets with entry times."
+                if s["phase"] == "arrival"
+                else f"Stagger the exit: spread departures over {mins} (release stands or blocks in turn)."
             )
     if s["drivable"] and not s["closed_to_traffic"] and s["road_width_m"] > 0:
         new_cap = (s["walk_width_m"] + s["road_width_m"]) * 82
@@ -397,7 +399,9 @@ def choke_fixes(s: dict, window_min: float) -> List[str]:
                 f"(its load would fall from {s['load']:.0%} to {new_load:.0%} of capacity)."
             )
     fixes.append(
-        "Send part of the crowd another way: signs and marshals at the exits pointing to other stations or streets."
+        "Send part of the crowd another way: signs and marshals "
+        + ("on the approach" if s["phase"] == "arrival" else "at the exits")
+        + " pointing to other gates, stations or streets."
     )
     return fixes
 

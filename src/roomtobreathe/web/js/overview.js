@@ -33,8 +33,12 @@ function withFixes(venue) {
   return { ...venue, surroundings: { ...(venue.surroundings || {}), overrides: fixes } };
 }
 
+// A named street is corrected as a whole (OpenStreetMap splits streets into many segments);
+// an unnamed lane by its segment.
+const fixId = (p) => (p.street && !p.street.startsWith("unnamed") ? `name:${p.street}` : String(p.way));
+
 function fixForm(p) {
-  const fixes = loadFixes(lastVenueId), cur = fixes[p.way] || {};
+  const fixes = loadFixes(lastVenueId), key = fixId(p), cur = fixes[key] || {};
   const el = document.createElement("form");
   el.className = "fix-form";
   el.innerHTML = `<b>${esc(p.street)}</b>
@@ -44,7 +48,8 @@ function fixForm(p) {
     ${p.width_estimated && cur.walk_width === undefined ? `<div class="small muted">Estimated from the street type: measure it if you can.</div>` : ""}
     ${p.drivable || p.closed_to_traffic ? `<label class="small"><input name="closed" type="checkbox"${cur.closed_to_traffic ? " checked" : ""}> Closed to traffic during the event</label>` : ""}
     <label class="small"><input name="blocked" type="checkbox"${cur.no_walk ? " checked" : ""}> Blocked for people on foot (works, market, locked)</label>
-    <div class="btns"><button class="primary">Save correction</button>${fixes[p.way] ? `<button type="button" data-undo>Undo my correction</button>` : ""}</div>`;
+    <div class="small muted">${key.startsWith("name:") ? "Applies to the whole street." : "Applies to this stretch."}</div>
+    <div class="btns"><button class="primary">Save correction</button>${fixes[key] ? `<button type="button" data-undo>Undo my correction</button>` : ""}</div>`;
   el.addEventListener("submit", (e) => {
     e.preventDefault();
     const f = new FormData(el), all = loadFixes(lastVenueId), fix = {};
@@ -52,14 +57,14 @@ function fixForm(p) {
     if (Number.isFinite(w) && Math.abs(w - p.walk_width_m) > 0.05) fix.walk_width = w;
     if (f.has("closed")) fix.closed_to_traffic = true;
     if (f.has("blocked")) fix.no_walk = true;
-    if (Object.keys(fix).length) all[p.way] = { ...fix, street: p.street }; else delete all[p.way];
+    if (Object.keys(fix).length) all[key] = { ...fix, street: p.street }; else delete all[key];
     saveFixes(lastVenueId, all);
     map?.closePopup();
     renderFixes();
   });
   el.querySelector("[data-undo]")?.addEventListener("click", () => {
     const all = loadFixes(lastVenueId);
-    delete all[p.way];
+    delete all[key];
     saveFixes(lastVenueId, all);
     map?.closePopup();
     renderFixes();
