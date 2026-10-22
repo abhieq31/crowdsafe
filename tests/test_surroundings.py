@@ -94,12 +94,12 @@ def net():
 
 @pytest.fixture(scope="module")
 def small():
-    return event_overview(venue(), 3000, town(), radius_m=450)
+    return event_overview(venue(), 3000, town(), radius_m=420)
 
 
 @pytest.fixture(scope="module")
 def big():
-    return event_overview(venue(), 20000, town(), radius_m=450)
+    return event_overview(venue(), 20000, town(), radius_m=420)
 
 
 # ------------------------------------------------------------------ network
@@ -189,7 +189,9 @@ def test_diversion_avoids_the_closed_street(net):
 def test_car_park_capacity_is_respected(big):
     [cp] = big["traffic"]["car_parks"]
     assert cp["spaces"] == 300 and cp["spaces_known"]
-    assert cp["vehicles"] <= 300 * 1.05
+    assert 100 < cp["vehicles"] <= 300 * 1.05  # traffic is really modelled, and the car park fills but no more
+    assert big["traffic"]["roads"] and big["traffic"]["event_vehicles"] > 1000
+    assert not any("No main road" in n for n in big["notes"])
 
 
 # ------------------------------------------------------------------ emergency
@@ -232,7 +234,7 @@ def test_geojson_and_printable_plan(small):
 
 
 def test_deterministic(small):
-    again = event_overview(venue(), 3000, town(), radius_m=450)
+    again = event_overview(venue(), 3000, town(), radius_m=420)
     assert again["totals"] == small["totals"] and again["checks"] == small["checks"]
 
 
@@ -241,7 +243,7 @@ def test_modes_are_parsed_and_normalised():
     assert parse_modes("metro=30, bus=20%,walk=50") == {"metro": 30, "bus": 20, "walk": 50}
     with pytest.raises(ValueError):
         parse_modes("teleport=10")
-    r = event_overview(venue(), 2000, town(), modes={"walk": 3, "metro": 1}, radius_m=450)
+    r = event_overview(venue(), 2000, town(), modes={"walk": 3, "metro": 1}, radius_m=420)
     assert r["modes"] == {"walk": 0.75, "metro": 0.25}
 
 
@@ -261,7 +263,7 @@ def test_gate_position_round_trips():
 def test_typed_gate_without_position_is_flagged():
     v = venue()
     del v["gates"][0]["line"]
-    r = event_overview(v, 2000, town(), radius_m=450)
+    r = event_overview(v, 2000, town(), radius_m=420)
     assert any("East gate has no position" in n for n in r["notes"])
 
 
@@ -275,7 +277,7 @@ def test_api_and_cli(tmp_path):
 
     with TestClient(create_app(default_venue(), token="")) as c:
         r = c.post("/api/overview", json={"venue": venue(), "attendance": 3000, "osm": town(),
-                                          "options": {"radius_m": 450, "modes": "metro=50,walk=50"}})
+                                          "options": {"radius_m": 420, "modes": "metro=50,walk=50"}})
         assert r.status_code == 200, r.text
         assert r.json()["modes"] == {"metro": 0.5, "walk": 0.5}
         h = c.post("/api/overview/html", json=r.json())
@@ -285,7 +287,7 @@ def test_api_and_cli(tmp_path):
     vf, of, hf = tmp_path / "v.json", tmp_path / "osm.json", tmp_path / "plan.html"
     vf.write_text(json.dumps(venue()))
     of.write_text(json.dumps(town()))
-    code = main(["overview", str(vf), "--people", "3000", "--osm", str(of), "--radius", "450", "--html", str(hf)])
+    code = main(["overview", str(vf), "--people", "3000", "--osm", str(of), "--radius", "420", "--html", str(hf)])
     assert code in (0, 1) and "District Hospital" in hf.read_text()
 
 
@@ -293,7 +295,7 @@ def test_runs_fast_enough_for_a_browser():
     import time
 
     t = time.perf_counter()
-    event_overview(venue(), 20000, town(), radius_m=450)
+    event_overview(venue(), 20000, town(), radius_m=420)
     assert time.perf_counter() - t < 5
     assert math.isfinite(t)
 
@@ -313,7 +315,7 @@ def to_xml(data):
 
 def test_osm_xml_export_gives_the_same_plan(small):
     data = parse_osm(to_xml(town()))
-    r = event_overview(venue(), 3000, data, radius_m=450)
+    r = event_overview(venue(), 3000, data, radius_m=420)
     assert r["totals"] == small["totals"]
     with pytest.raises(ValueError):
         parse_osm("hello")
@@ -339,9 +341,9 @@ def test_download_survives_a_missing_part(monkeypatch):
         return streets
 
     monkeypatch.setattr(osm_mod, "fetch_part", fake)
-    data = osm_mod.fetch_osm(*ORIGIN, 450)
+    data = osm_mod.fetch_osm(*ORIGIN, 420)
     assert data["missing"] == [osm_mod.PART_NAMES[2]]
-    r = event_overview(venue(), 3000, data, radius_m=450)
+    r = event_overview(venue(), 3000, data, radius_m=420)
     assert any("did not send" in n for n in r["notes"])
     assert not r["emergency"]["hospitals"]
 
@@ -352,7 +354,7 @@ def test_download_needs_the_streets(monkeypatch):
 
     monkeypatch.setattr(osm_mod, "fetch_part", fake)
     with pytest.raises(RuntimeError):
-        osm_mod.fetch_osm(*ORIGIN, 450)
+        osm_mod.fetch_osm(*ORIGIN, 420)
 
 
 def test_hedged_request_takes_the_first_good_answer(monkeypatch):
@@ -384,7 +386,7 @@ def test_corrections_change_the_plan(big):
     way = str(worst["way"])
     wider = venue()
     wider["surroundings"] = {"overrides": {way: {"walk_width": 20}}}
-    r = event_overview(wider, 20000, town(), radius_m=450)
+    r = event_overview(wider, 20000, town(), radius_m=420)
     assert any("your corrections" in n for n in r["notes"])
     again = next(s for s in r["streets"]["departure_before_fixes"] if str(s["way"]) == way)
     assert again["walk_width_m"] == 20 and not again["width_estimated"] and again["load"] < worst["load"]
@@ -394,7 +396,7 @@ def test_blocked_street_is_not_walked():
     way = _way("Row 100")
     v = venue()
     v["surroundings"] = {"overrides": {str(way): {"no_walk": True}}}
-    r = event_overview(v, 5000, town(), radius_m=450)
+    r = event_overview(v, 5000, town(), radius_m=420)
     used = {str(s["way"]) for k in ("arrival", "departure") for s in r["streets"][k]}
     assert str(way) not in used
 
@@ -403,7 +405,7 @@ def test_corrections_passed_in_win_over_the_saved_ones():
     way = str(_way("Main Road"))
     v = venue()
     v["surroundings"] = {"overrides": {way: {"walk_width": 1}}}
-    r = event_overview(v, 5000, town(), radius_m=450, overrides={way: {"walk_width": 9}})
+    r = event_overview(v, 5000, town(), radius_m=420, overrides={way: {"walk_width": 9}})
     main = [f for f in r["geojson"]["features"] if f["properties"].get("way") == int(way)]
     assert main and all(f["properties"]["walk_width_m"] == 9 for f in main)
 
@@ -420,7 +422,7 @@ def test_stagger_minutes_reaches_level_d():
 
 
 def test_staggered_exit_is_checked_and_adopted():
-    r = event_overview(venue(), 40000, town(), radius_m=450)
+    r = event_overview(venue(), 40000, town(), radius_m=420)
     st = r["stagger"]
     assert st and st["adopted"] and st["overflowing_after"] < st["overflowing_before"]
     assert r["times"]["departure_minutes"] == st["minutes"] > st["instead_of"]
@@ -452,6 +454,6 @@ def test_briefing_sheets_and_csv(big, tmp_path):
     vf, of, out = tmp_path / "v.json", tmp_path / "osm.json", tmp_path / "brief"
     vf.write_text(json.dumps(venue()))
     of.write_text(json.dumps(town()))
-    main(["overview", str(vf), "--people", "20000", "--osm", str(of), "--radius", "450", "--briefings", str(out)])
+    main(["overview", str(vf), "--people", "20000", "--osm", str(of), "--radius", "420", "--briefings", str(out)])
     names = sorted(p.name for p in out.iterdir())
     assert "posts.csv" in names and "briefing-traffic-police.html" in names and "briefing-health.html" in names
