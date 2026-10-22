@@ -278,7 +278,10 @@ async function render(r) {
       <p class="small muted">Map data © OpenStreetMap contributors (ODbL). Footfall, travel shares and staffing ratios are planning
         assumptions: the police, traffic, health and the organisers must check this plan on the ground and adapt it.</p></details>
     <div class="btns"><button type="button" class="primary" id="ov-print">Open the printable plan</button>
-      <button type="button" id="ov-geojson">Download the map data (GeoJSON)</button></div>`;
+      <span class="brief"><select id="ov-agency" aria-label="Agency">${agencies.map((a) => `<option>${esc(a)}</option>`).join("")}</select>
+        <button type="button" id="ov-brief">Briefing sheet</button></span>
+      <button type="button" id="ov-csv">All posts (CSV)</button>
+      <button type="button" id="ov-geojson">Map data (GeoJSON)</button></div>`;
   out.hidden = false;
   await drawMap(r);
   renderFixes();
@@ -291,7 +294,9 @@ async function render(r) {
       $("#ov-map").scrollIntoView({ block: "center" });
     }
   });
-  $("#ov-print").addEventListener("click", printable);
+  $("#ov-print").addEventListener("click", () => printable(""));
+  $("#ov-brief").addEventListener("click", () => printable($("#ov-agency").value));
+  $("#ov-csv").addEventListener("click", () => download(postsCsv(r), "event-posts.csv", "text/csv"));
   $("#ov-geojson").addEventListener("click", () => download(JSON.stringify(r.geojson), "event-overview.geojson", "application/geo+json"));
 }
 
@@ -345,19 +350,28 @@ function download(text, name, type) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-async function printable() {
+// Same columns as report.deployments_csv in Python.
+function postsCsv(r) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [["agency", "role", "staff", "place", "latitude", "longitude", "why", "when", "priority"]];
+  for (const d of r.deployments) rows.push([d.agency, d.role, d.count, d.place, d.lat_lon?.[0], d.lat_lon?.[1], d.why, d.when, d.priority]);
+  return rows.map((row) => row.map(q).join(",")).join("\r\n") + "\r\n";
+}
+
+async function printable(agency) {
   if (!last) return;
   try {
     let html;
     if (usingServer()) {
-      const r = await fetch("api/overview/html", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(last) });
+      const r = await fetch(`api/overview/html?agency=${encodeURIComponent(agency)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(last) });
       if (!r.ok) throw new Error(r.statusText);
       html = await r.text();
     } else {
-      html = await inBrowserEngine(null, last, "overview_html", {}, "#ov-status");
+      html = await inBrowserEngine(null, last, "overview_html", { agency }, "#ov-status");
     }
     const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    if (!window.open(url, "_blank")) download(html, "event-plan.html", "text/html");
+    const name = agency ? `briefing-${agency.toLowerCase().replace(/\s+/g, "-")}.html` : "event-plan.html";
+    if (!window.open(url, "_blank")) download(html, name, "text/html");
   } catch (err) {
     status(`Could not make the printable plan: ${err.message}`);
   }

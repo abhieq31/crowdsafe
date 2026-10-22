@@ -211,12 +211,13 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
             raise HTTPException(503, str(e)) from e
 
     @app.post("/api/overview/html")
-    def overview_html(result: dict):
-        """The printable plan (HTML) for a result from POST /api/overview."""
+    def overview_html(result: dict, agency: str = ""):
+        """The printable plan (HTML) for a result from POST /api/overview; ``?agency=Police`` for one
+        agency's briefing sheet."""
         from ..surroundings import render_html
 
         try:
-            return HTMLResponse(render_html(result))
+            return HTMLResponse(render_html(result, agency=agency))
         except (KeyError, TypeError, ValueError) as e:
             raise HTTPException(400, f"not an overview result: {e}") from e
 

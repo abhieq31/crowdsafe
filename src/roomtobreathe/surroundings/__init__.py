@@ -6,4 +6,4 @@ Entry point: ``event_overview(venue_dict, attendance, osm_json, ...)``. Get ``os
 
 from .osm import fetch_osm, load_or_fetch, merge_osm, overpass_queries, overpass_query, parse_osm  # noqa: F401
 from .overview import event_overview, parse_modes  # noqa: F401
-from .report import render_html  # noqa: F401
+from .report import agencies, deployments_csv, render_html  # noqa: F401

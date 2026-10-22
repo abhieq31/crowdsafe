@@ -426,3 +426,32 @@ def test_staggered_exit_is_checked_and_adopted():
     assert r["times"]["departure_minutes"] == st["minutes"] > st["instead_of"]
     assert any("Stagger the exit" in c["title"] for c in r["checks"])
     assert not [s for s in r["streets"]["departure"] if s["los"] in ("E", "F")]
+
+
+# ------------------------------------------------------------------ briefings
+def test_briefing_sheets_and_csv(big, tmp_path):
+    import csv
+    import io
+
+    from roomtobreathe.surroundings import agencies, deployments_csv
+
+    ags = agencies(big)
+    assert ags[:3] == ["Police", "Traffic police", "Health"]
+    traffic = render_html(big, agency="Traffic police")
+    assert "Briefing for Traffic police" in traffic and "Road closures and diversions" in traffic
+    assert "<h2>Health</h2>" not in traffic and "<h2>Traffic police</h2>" in traffic  # only this agency's posts
+    health = render_html(big, agency="Health")
+    assert "District Hospital" in health and "Outside choke points" not in health
+    with pytest.raises(ValueError):
+        render_html(big, agency="Navy")
+    rows = list(csv.DictReader(io.StringIO(deployments_csv(big))))
+    assert len(rows) == len(big["deployments"]) and {"agency", "latitude", "why"} <= set(rows[0])
+
+    from roomtobreathe.cli import main
+
+    vf, of, out = tmp_path / "v.json", tmp_path / "osm.json", tmp_path / "brief"
+    vf.write_text(json.dumps(venue()))
+    of.write_text(json.dumps(town()))
+    main(["overview", str(vf), "--people", "20000", "--osm", str(of), "--radius", "450", "--briefings", str(out)])
+    names = sorted(p.name for p in out.iterdir())
+    assert "posts.csv" in names and "briefing-traffic-police.html" in names and "briefing-health.html" in names

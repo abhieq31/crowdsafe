@@ -30,8 +30,42 @@ def _extra(m) -> str:
     return "" if m is None else f"{m:,} m"
 
 
-def render_html(r: Dict, title: str = "") -> str:
-    title = title or f"Event plan: {r['venue']}"
+# What each agency's briefing sheet shows besides its own posts.
+BRIEFING_TABLES = {"Police": ("chokes", "transit"), "Organisers": ("chokes",), "Transport operator": ("transit",),
+                   "Traffic police": (), "Health": (), "Fire service": ()}
+
+
+def agencies(r: Dict) -> List[str]:
+    found = {d["agency"] for d in r["deployments"]}
+    return [a for a in AGENCY_ORDER if a in found] + sorted(found - set(AGENCY_ORDER))
+
+
+def deployments_csv(r: Dict) -> str:
+    """Every post as CSV, for spreadsheets, rosters and radio call sheets."""
+    import csv
+    import io
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["agency", "role", "staff", "place", "latitude", "longitude", "why", "when", "priority"])
+    for d in r["deployments"]:
+        lat, lon = d.get("lat_lon") or ("", "")
+        w.writerow([d["agency"], d["role"], d["count"], d["place"], lat, lon, d["why"], d["when"], d["priority"]])
+    return buf.getvalue()
+
+
+def render_html(r: Dict, title: str = "", agency: str = "") -> str:
+    """The whole plan, or with ``agency`` a briefing sheet with only that agency's posts and the facts it needs."""
+    if agency:
+        if agency not in agencies(r):
+            raise ValueError(f"no posts for {agency!r}; agencies in this plan: {', '.join(agencies(r))}")
+        r = dict(r, deployments=[d for d in r["deployments"] if d["agency"] == agency],
+                 totals=[t for t in r["totals"] if t["agency"] == agency],
+                 geojson=dict(r["geojson"], features=[f for f in r["geojson"]["features"]
+                                                      if f["properties"].get("layer") != "deployment"
+                                                      or f["properties"].get("agency") == agency]))
+    title = title or (f"Briefing for {agency}: {r['venue']}" if agency else f"Event plan: {r['venue']}")
+    show = BRIEFING_TABLES.get(agency, ("chokes", "transit")) if agency else ("chokes", "transit")
     t = r["times"]
     lvl, col = LEVEL[r["verdict"]]
     checks = "".join(
@@ -110,6 +144,12 @@ def render_html(r: Dict, title: str = "") -> str:
         for s in r["choke_points"][:20]
     )
     notes = "".join(f"<li>{_e(n)}</li>" for n in r["notes"] + r["rules_of_thumb"])
+    chokes_html = ('<h2>Outside choke points</h2><div class="scroll"><table><tr><th>Street</th><th>When</th><th>Level</th>'
+                   '<th>Load</th><th>Footpath m</th><th>First fix</th></tr>'
+                   + (chokes or "<tr><td colspan=6>None.</td></tr>") + "</table></div>")
+    transit_html = ('<h2>Stations and stops</h2><div class="scroll"><table><tr><th>Place</th><th>Mode</th><th>When</th>'
+                    '<th>People</th><th>Busiest 15 min</th></tr>' + (transit or "<tr><td colspan=5>None.</td></tr>")
+                    + "</table></div>")
     modes = ", ".join(f"{k} {v:.0%}" for k, v in r["modes"].items())
     geo = json.dumps(r["geojson"]).replace("</", "<\\/")
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -142,8 +182,8 @@ ul.checks{{padding-left:18px}} ul.checks li{{margin-bottom:6px}}
 <span><i style="background:#0a84ff"></i>ambulance route</span></div>
 <h2>Staff summary</h2><div class="scroll"><table><tr><th>Agency</th><th>Role</th><th>Staff</th><th>Posts</th></tr>{totals}</table></div>
 {"".join(sections)}
-<h2>Outside choke points</h2><div class="scroll"><table><tr><th>Street</th><th>When</th><th>Level</th><th>Load</th><th>Footpath m</th><th>First fix</th></tr>{chokes or "<tr><td colspan=6>None.</td></tr>"}</table></div>
-<h2>Stations and stops</h2><div class="scroll"><table><tr><th>Place</th><th>Mode</th><th>When</th><th>People</th><th>Busiest 15 min</th></tr>{transit or "<tr><td colspan=5>None.</td></tr>"}</table></div>
+{chokes_html if "chokes" in show else ""}
+{transit_html if "transit" in show else ""}
 <h2>Assumptions and data</h2><ul>{notes}</ul>
 <p class="small muted">Room to Breathe {_e(r.get("version", ""))} · Map data © OpenStreetMap contributors (ODbL).
 This plan is decision support: police, traffic, health and the organisers must check it on the ground and adapt it.</p>

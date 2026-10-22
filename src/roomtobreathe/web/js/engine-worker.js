@@ -44,7 +44,8 @@ self.onmessage = async (e) => {
       py.globals.delete("osm_parts");
     } else if (e.data.kind === "overview_html") {
       py.globals.set("result_json", JSON.stringify(e.data.params));
-      out = py.runPython("json.dumps(render_html(json.loads(result_json)))");
+      py.globals.set("agency", e.data.agency || "");
+      out = py.runPython("json.dumps(render_html(json.loads(result_json), agency=agency))");
     } else if (e.data.kind === "assess") {
       postMessage({ status: "Checking capacity, arrival, a surge and an evacuation…" });
       out = py.runPython("p = json.loads(params_json)\njson.dumps(assess_event(json.loads(venue_json), p['attendance'], p.get('arrival_minutes') or 60))");

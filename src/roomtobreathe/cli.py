@@ -211,7 +211,15 @@ def cmd_assess(a) -> int:
 
 
 def cmd_overview(a) -> int:
-    from .surroundings import event_overview, load_or_fetch, parse_modes, parse_osm, render_html
+    from .surroundings import (
+        agencies,
+        deployments_csv,
+        event_overview,
+        load_or_fetch,
+        parse_modes,
+        parse_osm,
+        render_html,
+    )
 
     try:
         venue = json.loads(open(a.venue, encoding="utf-8").read())
@@ -237,6 +245,14 @@ def cmd_overview(a) -> int:
         return 1
     if a.html:
         open(a.html, "w", encoding="utf-8").write(render_html(r))
+    if a.briefings:
+        import os
+
+        os.makedirs(a.briefings, exist_ok=True)
+        for ag in agencies(r):
+            path = os.path.join(a.briefings, f"briefing-{ag.lower().replace(' ', '-')}.html")
+            open(path, "w", encoding="utf-8").write(render_html(r, agency=ag))
+        open(os.path.join(a.briefings, "posts.csv"), "w", encoding="utf-8", newline="").write(deployments_csv(r))
     if a.json:
         print(json.dumps(r, indent=2, ensure_ascii=False))
         return 0
@@ -256,6 +272,8 @@ def cmd_overview(a) -> int:
         print(f"\nNote: {n}")
     if a.html:
         print(f"\nPrintable plan with map: {a.html}")
+    if a.briefings:
+        print(f"Briefing sheets per agency and posts.csv: {a.briefings}/")
     return {"pass": 0, "warn": 0, "fail": 1}[r["verdict"]]
 
 
@@ -395,6 +413,7 @@ def main(argv=None) -> int:
                                   "(openstreetmap.org → Export)")
     ov.add_argument("--refresh", action="store_true", help="download fresh map data even if cached")
     ov.add_argument("--html", help="write the printable plan with a map to this file")
+    ov.add_argument("--briefings", help="write one briefing sheet per agency and posts.csv into this folder")
     ov.add_argument("--json", action="store_true")
 
     wi = sub.add_parser("whatif", help="what if N people come, a surge starts, a gate blocks, or all must leave")
