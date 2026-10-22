@@ -176,6 +176,28 @@ def event_overview(
         departure = departure0
     streets_dep = D.street_report(net, departure, public_level)
 
+    # A staggered exit: if streets still overflow, release the crowd over a longer time (stands or blocks
+    # in turn) and check that pace. Adopted in the plan when it works better.
+    stagger = None
+    if apply_fixes:
+        need = stagger_minutes(streets_dep, depart)
+        if need is not None:
+            trial = D.assign(net, accesses, dests, attendance, "departure", need, public_level)
+            streets_trial = D.street_report(net, trial, public_level)
+            left = [s for s in streets_trial if s["los"] in ("E", "F")]
+            before = [s for s in streets_dep if s["los"] in ("E", "F")]
+            stagger = {
+                "minutes": need,
+                "instead_of": depart,
+                "waves": math.ceil(need / depart),
+                "overflowing_before": len(before),
+                "overflowing_after": len(left),
+                "streets_left": [s["street"] for s in left[:5]],
+            }
+            if len(left) < len(before):
+                departure, streets_dep, depart = trial, streets_trial, need
+                stagger["adopted"] = True
+
     # ---- Step 3: vehicles
     entries = T.entry_points(net, radius_m)
     car_dests = T.vehicle_destinations(net, dests)
@@ -236,8 +258,23 @@ def event_overview(
     )
 
     pickups_rep = pickup_report(net, pickups, tr_dep)
-    checks = _checks(
-        streets_arr, streets_dep0, streets_dep, closures, roads, conflicts, transit, hosp, corridor, depart, pickups_rep
+    if stagger:
+        streets_dep_label = "after closures and the staggered exit" if stagger.get("adopted") else "after closures"
+    else:
+        streets_dep_label = "after closures"
+    checks = _stagger_checks(stagger) + _checks(
+        streets_arr,
+        streets_dep0,
+        streets_dep,
+        closures,
+        roads,
+        conflicts,
+        transit,
+        hosp,
+        corridor,
+        depart,
+        pickups_rep,
+        staggered=bool(stagger and stagger.get("adopted")),
     )
     level = max((c["level"] for c in checks), key=ORDER.get) if checks else "pass"
     for s in chokes:
@@ -250,6 +287,8 @@ def event_overview(
         "venue": venue.name,
         "attendance": attendance,
         "times": {"arrival_minutes": arrival_minutes, "event_end_min": end, "departure_minutes": depart},
+        "stagger": stagger,
+        "streets_departure_label": streets_dep_label,
         "modes": modes,
         "public_level": public_level,
         "radius_m": radius_m,
@@ -327,6 +366,25 @@ def event_overview(
         venue,
     )
     return result
+
+
+MAX_STAGGER_MIN = 120  # longer than this and people stop waiting: other measures are needed
+
+
+def stagger_minutes(streets: List[dict], depart: float) -> Optional[float]:
+    """How long the departure must be spread over so every overflowing street drops to level D (the top
+    of D, 66 people/m/min). None if nothing overflows; at most ``MAX_STAGGER_MIN``."""
+    need = 0.0
+    for s in streets:
+        if s["los"] not in ("E", "F"):
+            continue
+        room = 66 * s["walk_width_m"] - s["public_ppm"]
+        if room <= 0 or s["event_ppm"] <= 0:
+            continue
+        need = max(need, depart * s["event_ppm"] / room)
+    if need <= depart:
+        return None
+    return float(min(MAX_STAGGER_MIN, math.ceil(need / 5) * 5))
 
 
 MAX_CLOSURES = 8
@@ -468,7 +526,36 @@ def pickup_report(net: StreetNetwork, pickups, tr: "T.TrafficPhase") -> List[dic
     return out
 
 
-def _checks(arr, dep0, dep, closures, roads, conflicts, transit, hosp, corridor, depart, pickups_rep) -> List[dict]:
+def _stagger_checks(stagger: Optional[dict]) -> List[dict]:
+    if not stagger:
+        return []
+    if stagger.get("adopted") and stagger["overflowing_after"] == 0:
+        return [
+            {
+                "level": "warn",
+                "title": f"Stagger the exit over {stagger['minutes']:g} minutes",
+                "detail": f"Releasing the crowd in about {stagger['waves']} waves (stands or blocks in turn) "
+                f"instead of "
+                f"all within {stagger['instead_of']:g} minutes keeps every street outside within capacity. "
+                "This plan assumes it: rehearse the release order with the stewards.",
+            }
+        ]
+    if stagger.get("adopted"):
+        return [
+            {
+                "level": "warn",
+                "title": f"Stagger the exit over {stagger['minutes']:g} minutes",
+                "detail": f"It cuts the overflowing streets from {stagger['overflowing_before']} to "
+                f"{stagger['overflowing_after']} (still: {', '.join(stagger['streets_left'][:3])}). "
+                "Those need wider routes, more exits on other sides, or fewer people.",
+            }
+        ]
+    return []
+
+
+def _checks(
+    arr, dep0, dep, closures, roads, conflicts, transit, hosp, corridor, depart, pickups_rep, staggered=False
+) -> List[dict]:
     c: List[dict] = []
     bad0 = [s for s in dep0 if s["los"] in ("E", "F")]
     bad = [s for s in dep if s["los"] in ("E", "F")]
@@ -497,7 +584,12 @@ def _checks(arr, dep0, dep, closures, roads, conflicts, transit, hosp, corridor,
                 "level": "fail",
                 "title": f"{len(bad)} street(s) still overflow when the event ends",
                 "detail": f"Worst: {worst['street']} at {worst['load']:.0%} of its footpath capacity, even after the "
-                "closures. Stagger the exit, open other routes, or reduce the crowd.",
+                + (
+                    "closures and a staggered exit. Widen or open other routes (correct the footpath width on the map "
+                    "if it is wider), add exits on other sides, or reduce the crowd."
+                    if staggered
+                    else "closures. Stagger the exit, open other routes, or reduce the crowd."
+                ),
             }
         )
     bad_arr = [s for s in arr if s["los"] in ("E", "F")]

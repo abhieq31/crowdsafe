@@ -406,3 +406,23 @@ def test_corrections_passed_in_win_over_the_saved_ones():
     r = event_overview(v, 5000, town(), radius_m=450, overrides={way: {"walk_width": 9}})
     main = [f for f in r["geojson"]["features"] if f["properties"].get("way") == int(way)]
     assert main and all(f["properties"]["walk_width_m"] == 9 for f in main)
+
+
+# ------------------------------------------------------------------ staggered exit
+def test_stagger_minutes_reaches_level_d():
+    from roomtobreathe.surroundings.overview import MAX_STAGGER_MIN, stagger_minutes
+
+    s = {"los": "F", "walk_width_m": 2.0, "public_ppm": 12, "event_ppm": 240}
+    # 66 p/m/min x 2 m = 132 minus 12 public = 120 room; 240 event -> twice as long
+    assert stagger_minutes([s], 30) == 60
+    assert stagger_minutes([dict(s, los="D")], 30) is None
+    assert stagger_minutes([dict(s, event_ppm=10_000)], 30) == MAX_STAGGER_MIN
+
+
+def test_staggered_exit_is_checked_and_adopted():
+    r = event_overview(venue(), 40000, town(), radius_m=450)
+    st = r["stagger"]
+    assert st and st["adopted"] and st["overflowing_after"] < st["overflowing_before"]
+    assert r["times"]["departure_minutes"] == st["minutes"] > st["instead_of"]
+    assert any("Stagger the exit" in c["title"] for c in r["checks"])
+    assert not [s for s in r["streets"]["departure"] if s["los"] in ("E", "F")]
