@@ -41,3 +41,28 @@ test("a gate tapped a few metres inside the edge still finds both sides", () => 
   const middle = gateSides(O, [toLatLon(O, [20, 15]), toLatLon(O, [26, 15])], zones); // nowhere near an edge
   assert.equal(middle[0], middle[1]);
 });
+
+import { mergePlaces, parseLocation, queryVariants } from "../../src/roomtobreathe/web/js/geo.js";
+
+test("coordinates and map links pasted into search", () => {
+  assert.deepEqual(parseLocation("28.6420, 77.2299"), [28.642, 77.2299]);
+  assert.deepEqual(parseLocation("28.6420 77.2299"), [28.642, 77.2299]);
+  assert.deepEqual(parseLocation("https://www.google.com/maps/@28.642,77.2299,17z"), [28.642, 77.2299]);
+  assert.deepEqual(parseLocation("https://www.google.com/maps/place/Ramlila+Grounds/@28.6431,77.2256,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d28.642!4d77.2299"), [28.642, 77.2299]);
+  assert.deepEqual(parseLocation("https://maps.google.com/?q=28.642,77.2299"), [28.642, 77.2299]);
+  assert.deepEqual(parseLocation("https://www.openstreetmap.org/#map=17/28.64200/77.22990"), [28.642, 77.2299]);
+  assert.equal(parseLocation("Ramlila Maidan"), null);
+  assert.equal(parseLocation("120, 500"), null);
+});
+
+test("generic words are dropped for a second search", () => {
+  assert.deepEqual(queryVariants("Ramlila Maidan"), ["Ramlila Maidan", "Ramlila"]);
+  assert.deepEqual(queryVariants("Ramlila Maidan, New Delhi"), ["Ramlila Maidan, New Delhi", "Ramlila, New Delhi"]);
+  assert.deepEqual(queryVariants("Eden Gardens, Kolkata"), ["Eden Gardens, Kolkata"]);
+  assert.deepEqual(queryVariants("Maidan"), ["Maidan"]);
+});
+
+test("places found by several searches are listed once", () => {
+  const a = [{ name: "A", lat: 28.642, lon: 77.2299 }], b = [{ name: "A2", lat: 28.6423, lon: 77.2301 }, { name: "B", lat: 28.69, lon: 77.29 }];
+  assert.deepEqual(mergePlaces([a, b]).map((p) => p.name), ["A", "B"]);
+});

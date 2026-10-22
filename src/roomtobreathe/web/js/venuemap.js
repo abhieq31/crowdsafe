@@ -1,11 +1,12 @@
 // Draw a venue on a real map: search the place, draw each zone's outline, and draw a short line across
 // each gate's opening. Areas and widths are measured from the drawing, so nobody has to guess them.
 // OpenStreetMap needs no account or key, which is what lets any local body use this for free.
-import { areaM2, gateSides, lengthM } from "./geo.js";
+import { areaM2, gateSides, lengthM, mergePlaces, parseLocation, queryVariants } from "./geo.js";
 
 const LEAFLET = "https://unpkg.com/leaflet@1.9.4/dist/";
 const COLORS = ["#2456d6", "#e36b0a", "#2f9e5b", "#9b3fd1", "#d42a2a", "#0e8c8c", "#a8730a", "#5d6673"];
 const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 let L = null, map = null, layers = null, draft = null, onChange = null, changedOnly = null;
 let mode = null;      // null | "zone" | "gate" | "adjust"
@@ -127,23 +128,73 @@ function finishZone() {
   addZone(done);
 }
 
+// Two free OpenStreetMap search services. Only the typed text (and the map's centre, to prefer nearby
+// places) is sent.
+async function nominatim(q) {
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(q)}`);
+  return (await r.json()).map((h) => {
+    const parts = h.display_name.split(",").map((x) => x.trim());
+    return { name: parts[0], where: parts.slice(1, 4).join(", "), lat: Number(h.lat), lon: Number(h.lon),
+      bounds: h.boundingbox?.map(Number) };
+  });
+}
+async function photon(q) {
+  const c = map.getCenter();
+  const bias = map.getZoom() >= 5 ? `&lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}` : "";
+  const r = await fetch(`https://photon.komoot.io/api/?limit=6${bias}&q=${encodeURIComponent(q)}`);
+  return (await r.json()).features.map((f) => {
+    const p = f.properties, [lon, lat] = f.geometry.coordinates;
+    const where = [p.street, p.district || p.locality, p.city, p.state, p.country].filter((x, i, a) => x && a.indexOf(x) === i);
+    const [w, n, e, s] = p.extent || [];
+    return { name: p.name || where[0], where: where.slice(0, 3).join(", "), lat, lon, bounds: p.extent ? [s, n, w, e] : null };
+  });
+}
+
+function goTo(place) {
+  if (place.bounds && place.bounds.every(Number.isFinite) && place.bounds[0] !== place.bounds[1]) {
+    const [s, n, w, e] = place.bounds;
+    map.fitBounds([[s, w], [n, e]], { maxZoom: 18 });
+  } else {
+    map.setView([place.lat, place.lon], 17);
+  }
+  if (!draft.name && place.name) { draft.name = place.name; changedOnly(); }
+  $("#wi-map-results").innerHTML = "";
+  const label = [place.name, place.where].filter(Boolean).join(", ");
+  help(`${label}. Check it is the right place, then press Draw a zone and tap the corners of the area where people will stand.`);
+}
+
 async function search(e) {
   e.preventDefault();
   const q = $("#wi-map-q").value.trim();
+  const list = $("#wi-map-results");
+  list.innerHTML = "";
   if (!q) return;
-  help("Searching…");
-  try {
-    // OpenStreetMap's free geocoder. Only the typed place name is sent.
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
-    const [hit] = await r.json();
-    if (!hit) { help(`No place called "${q}" found. Try a nearby town or landmark.`); return; }
-    const [s, n, w, ea] = hit.boundingbox.map(Number);
-    map.fitBounds([[s, w], [n, ea]], { maxZoom: 18 });
-    if (!draft.name) { draft.name = hit.display_name.split(",")[0]; changedOnly(); }
-    help(`Found ${hit.display_name.split(",").slice(0, 2).join(",")}. Now press Draw a zone and tap the corners of the area where people will stand.`);
-  } catch {
-    help("Search is not available right now. Pan and zoom the map instead.");
+  const at = parseLocation(q);
+  if (at) { goTo({ name: "", where: `Pinned at ${at[0]}, ${at[1]}`, lat: at[0], lon: at[1] }); return; }
+  if (/goo\.gl|maps\.app/.test(q)) {
+    help("Short Google Maps links cannot be read here. Open the link, then copy the long address from the browser bar, or the coordinates.");
+    return;
   }
+  help("Searching…");
+  const variants = queryVariants(q);
+  const tries = variants.flatMap((v) => [photon(v), nominatim(v)]);
+  const found = await Promise.allSettled(tries);
+  const places = mergePlaces(found.filter((f) => f.status === "fulfilled").map((f) => f.value));
+  if (!places.length) {
+    help(found.every((f) => f.status === "rejected")
+      ? "Search is not available right now. Pan and zoom the map to the place, or paste its coordinates or a Google Maps link."
+      : `Nothing called "${q}" found. Try a nearby landmark or road, or paste a Google Maps link to the place.`);
+    return;
+  }
+  if (places.length === 1) { goTo(places[0]); return; }
+  help(q.includes(",") ? `${places.length} places match. Pick yours:`
+    : `${places.length} places match. Pick yours, or add the city to narrow it down, e.g. "${q}, Delhi".`);
+  list.innerHTML = places.map((p, i) => `<li><button type="button" data-i="${i}"><b>${esc(p.name)}</b><span>${esc(p.where)}</span></button></li>`).join("")
+    + `<li class="small muted">Not listed? Search a nearby landmark, or paste a Google Maps link.</li>`;
+  list.onclick = (ev) => {
+    const b = ev.target.closest("button[data-i]");
+    if (b) goTo(places[Number(b.dataset.i)]);
+  };
 }
 
 export async function openMap(state, changed) {

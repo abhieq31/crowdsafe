@@ -121,7 +121,7 @@
         <div id="wi-builder" hidden>
           <div id="wi-map-panel" hidden>
             <form id="wi-map-search" class="row">
-              <input id="wi-map-q" class="grow" placeholder="Search the place, e.g. Maidan, Kolkata" aria-label="Search a place">
+              <input id="wi-map-q" class="grow" placeholder="Place name, or paste a Google Maps link" aria-label="Search a place">
               <button>Search</button><button type="button" id="wi-locate" class="link">Where am I</button>
             </form>
             <div class="btns">
@@ -135,9 +135,10 @@
               <button id="wi-zone-cancel" type="button" class="link">Cancel</button>
             </div>
             <p class="small" id="wi-map-help" role="status"></p>
+            <ul class="places" id="wi-map-results"></ul>
             <div id="wi-map" class="wi-map" aria-label="Map of the venue"></div>
             <p class="small muted">A gate is a line across the opening at its narrowest point: its length is the width.
-              Map searches go to OpenStreetMap; nothing else you draw leaves this device.</p>
+              Searches go to OpenStreetMap's free search services (Nominatim and Photon); nothing you draw leaves this device.</p>
           </div>
           <label class="small muted name-row">Venue name <input id="wi-name" placeholder="e.g. Ram Navami Mela ground"></label>
           <h3>Zones <span class="small muted">— the areas people stand in</span></h3>
