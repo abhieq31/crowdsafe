@@ -195,6 +195,8 @@ class StreetNetwork:
     def from_overpass(
         cls, data: dict, origin: Tuple[float, float], overrides: Optional[Dict[str, dict]] = None
     ) -> "StreetNetwork":
+        """Build the network. ``overrides`` maps an OSM way id (as text) to corrections from people who
+        know the place: ``walk_width`` / ``road_width`` in metres, ``closed_to_traffic``, ``no_walk``."""
         net = cls(origin)
         overrides = overrides or {}
         els = data.get("elements", [])
@@ -232,8 +234,13 @@ class StreetNetwork:
             elif rt.drive and sw in ("left", "right"):
                 walk_w = walk_w / 2
             lanes = int(_num(tags.get("lanes")) or rt.lanes)
+            # Corrections from people who know the place (see overview: venue["surroundings"]["overrides"]).
             if "walk_width" in ov:
-                walk_w, est = float(ov["walk_width"]), False
+                walk_w, est = max(0.0, float(ov["walk_width"])), False
+            if "road_width" in ov:
+                road_w = max(0.0, float(ov["road_width"]))
+            if ov.get("no_walk"):  # blocked: construction, a market, a locked gate
+                walk = False
             closed = bool(ov.get("closed_to_traffic", False))
             nd = [n for n in e.get("nodes", []) if n in coords]
             for a, b in zip(nd, nd[1:]):

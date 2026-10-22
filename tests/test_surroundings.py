@@ -372,3 +372,37 @@ def test_hedged_request_takes_the_first_good_answer(monkeypatch):
     monkeypatch.setattr(osm_mod, "_post", post)
     out = osm_mod.fetch_part("q", mirrors=["a", "b", "c"], hedge_s=0.05)
     assert out == {"elements": ["fast"]} and calls[:3] == ["a", "b", "c"]
+
+
+# ------------------------------------------------------------------ corrections
+def _way(name):
+    return next(e["id"] for e in town()["elements"] if e["type"] == "way" and e["tags"].get("name") == name)
+
+
+def test_corrections_change_the_plan(big):
+    worst = big["streets"]["departure_before_fixes"][0]
+    way = str(worst["way"])
+    wider = venue()
+    wider["surroundings"] = {"overrides": {way: {"walk_width": 20}}}
+    r = event_overview(wider, 20000, town(), radius_m=450)
+    assert any("your corrections" in n for n in r["notes"])
+    again = next(s for s in r["streets"]["departure_before_fixes"] if str(s["way"]) == way)
+    assert again["walk_width_m"] == 20 and not again["width_estimated"] and again["load"] < worst["load"]
+
+
+def test_blocked_street_is_not_walked():
+    way = _way("Row 100")
+    v = venue()
+    v["surroundings"] = {"overrides": {str(way): {"no_walk": True}}}
+    r = event_overview(v, 5000, town(), radius_m=450)
+    used = {str(s["way"]) for k in ("arrival", "departure") for s in r["streets"][k]}
+    assert str(way) not in used
+
+
+def test_corrections_passed_in_win_over_the_saved_ones():
+    way = str(_way("Main Road"))
+    v = venue()
+    v["surroundings"] = {"overrides": {way: {"walk_width": 1}}}
+    r = event_overview(v, 5000, town(), radius_m=450, overrides={way: {"walk_width": 9}})
+    main = [f for f in r["geojson"]["features"] if f["properties"].get("way") == int(way)]
+    assert main and all(f["properties"]["walk_width_m"] == 9 for f in main)

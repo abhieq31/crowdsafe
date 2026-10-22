@@ -17,7 +17,74 @@ const ROLE_ICON = { "Police": "👮", "Traffic police": "🚦", "Steward": "🦺
 const AGENCIES = ["Police", "Traffic police", "Health", "Organisers", "Transport operator", "Fire service"];
 const LOS = { A: "#2f9e5b", B: "#2f9e5b", C: "#d7a300", D: "#e36b0a", E: "#d42a2a", F: "#8b0000" };
 const RADIUS_M = 1500;
-let last = null, map = null, groups = null, mapFile = null;
+let last = null, map = null, groups = null, mapFile = null, lastOsm = null, lastVenueId = null;
+
+// ------------------------------------------------------------------ corrections
+// People who walked the streets know better than the map: footpath widths (OpenStreetMap rarely has
+// them), streets that will be closed to traffic, streets blocked by construction or a market. They are
+// kept in this browser per venue, saved in the venue file, and used by every later plan.
+const fixKey = (id) => `rtb:ov-fix:${id}`;
+function loadFixes(id) { try { return JSON.parse(localStorage.getItem(fixKey(id)) || "{}"); } catch { return {}; } }
+function saveFixes(id, fixes) { try { localStorage.setItem(fixKey(id), JSON.stringify(fixes)); } catch { /* private mode */ } }
+export function correctionsFor(id) { return loadFixes(id); }
+
+function withFixes(venue) {
+  const fixes = { ...(venue.surroundings?.overrides || {}), ...loadFixes(venue.id) };
+  return { ...venue, surroundings: { ...(venue.surroundings || {}), overrides: fixes } };
+}
+
+function fixForm(p) {
+  const fixes = loadFixes(lastVenueId), cur = fixes[p.way] || {};
+  const el = document.createElement("form");
+  el.className = "fix-form";
+  el.innerHTML = `<b>${esc(p.street)}</b>
+    <div class="small muted">${p.ppm_per_m} people per metre per minute at the busiest · level ${esc(p.los)}</div>
+    <label class="small">Footpath width, both sides together (m)
+      <input name="walk_width" type="number" min="0" step="0.5" value="${cur.walk_width ?? p.walk_width_m}"></label>
+    ${p.width_estimated && cur.walk_width === undefined ? `<div class="small muted">Estimated from the street type: measure it if you can.</div>` : ""}
+    ${p.drivable || p.closed_to_traffic ? `<label class="small"><input name="closed" type="checkbox"${cur.closed_to_traffic ? " checked" : ""}> Closed to traffic during the event</label>` : ""}
+    <label class="small"><input name="blocked" type="checkbox"${cur.no_walk ? " checked" : ""}> Blocked for people on foot (works, market, locked)</label>
+    <div class="btns"><button class="primary">Save correction</button>${fixes[p.way] ? `<button type="button" data-undo>Undo my correction</button>` : ""}</div>`;
+  el.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const f = new FormData(el), all = loadFixes(lastVenueId), fix = {};
+    const w = Number(f.get("walk_width"));
+    if (Number.isFinite(w) && Math.abs(w - p.walk_width_m) > 0.05) fix.walk_width = w;
+    if (f.has("closed")) fix.closed_to_traffic = true;
+    if (f.has("blocked")) fix.no_walk = true;
+    if (Object.keys(fix).length) all[p.way] = { ...fix, street: p.street }; else delete all[p.way];
+    saveFixes(lastVenueId, all);
+    map?.closePopup();
+    renderFixes();
+  });
+  el.querySelector("[data-undo]")?.addEventListener("click", () => {
+    const all = loadFixes(lastVenueId);
+    delete all[p.way];
+    saveFixes(lastVenueId, all);
+    map?.closePopup();
+    renderFixes();
+  });
+  return el;
+}
+
+function renderFixes() {
+  const box = $("#ov-fixes");
+  if (!box) return;
+  const fixes = loadFixes(lastVenueId), n = Object.keys(fixes).length;
+  const describe = (f) => [f.walk_width !== undefined ? `footpath ${f.walk_width} m` : "", f.closed_to_traffic ? "closed to traffic" : "",
+    f.no_walk ? "blocked for walkers" : ""].filter(Boolean).join(", ");
+  box.innerHTML = n ? `<b>Your corrections (${n})</b><ul class="small">${Object.entries(fixes).map(([way, f]) =>
+    `<li>${esc(f.street || `street ${way}`)}: ${esc(describe(f))} <button type="button" class="link" data-unfix="${esc(way)}">remove</button></li>`).join("")}</ul>
+    <button type="button" class="primary" id="ov-replan">Re-plan with my corrections</button>`
+    : `<span class="small muted">Tap a coloured street on the map to correct its footpath width, or mark it closed to traffic or blocked.</span>`;
+  box.querySelectorAll("[data-unfix]").forEach((b) => b.addEventListener("click", () => {
+    const all = loadFixes(lastVenueId);
+    delete all[b.dataset.unfix];
+    saveFixes(lastVenueId, all);
+    renderFixes();
+  }));
+  $("#ov-replan")?.addEventListener("click", () => $("#ov-form").requestSubmit());
+}
 
 const status = (t) => { $("#ov-status").textContent = t; };
 
@@ -118,24 +185,30 @@ async function run(e) {
   if (!Object.keys(p.modes).length) { status("Say how people travel: at least one share above 0."); return; }
   $("#ov-run").disabled = true;
   const t0 = performance.now();
+  const planVenue = withFixes(venue);
+  lastVenueId = venue.id;
   try {
     let r;
     if (usingServer()) {
       status("Downloading the streets and planning on the control-room server (the first time can take a few minutes)…");
       const resp = await fetch("api/overview", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venue, attendance: p.attendance, options: p, ...(mapFile ? { osm_text: mapFile } : {}) }) });
+        body: JSON.stringify({ venue: planVenue, attendance: p.attendance, options: p, ...(mapFile ? { osm_text: mapFile } : {}) }) });
       if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || resp.statusText);
       r = await resp.json();
     } else {
       status("Starting the engine in your browser…");
       let osm;
+      const where = `${venue.origin[0].toFixed(5)},${venue.origin[1].toFixed(5)}`;
       if (mapFile) {
         osm = { parts: [mapFile], missing: [] };
+      } else if (lastOsm?.where === where && !lastOsm.missing.length) {
+        osm = lastOsm; // re-planning: same place, no need to download again
       } else {
         const queries = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_queries", {}, "#ov-status");
-        osm = await fetchOsm(queries);
+        osm = { ...(await fetchOsm(queries)), where };
       }
-      r = await inBrowserEngine(venue, p, "overview", { osm: osm.parts, missing: osm.missing }, "#ov-status");
+      lastOsm = mapFile ? null : osm;
+      r = await inBrowserEngine(planVenue, p, "overview", { osm: osm.parts, missing: osm.missing }, "#ov-status");
     }
     last = r;
     await render(r);
@@ -192,6 +265,7 @@ async function render(r) {
     ${timeline(r.times)}
     <div class="ov-layers">${layerBoxes}</div>
     <div id="ov-map" class="wi-map ov-map" aria-label="Map of crowd routes, closures, ambulance route and teams"></div>
+    <div id="ov-fixes" class="ov-fixes"></div>
     <div class="legend small"><span><i style="background:#2f9e5b"></i>comfortable</span><span><i style="background:#d7a300"></i>busy</span>
       <span><i style="background:#e36b0a"></i>crowded</span><span><i style="background:#d42a2a"></i>overflowing</span>
       <span><i style="background:#111"></i>closed to traffic</span><span><i style="background:#7a3fd1"></i>diversion</span><span><i style="background:#0a84ff"></i>ambulance route</span></div>
@@ -207,6 +281,7 @@ async function render(r) {
       <button type="button" id="ov-geojson">Download the map data (GeoJSON)</button></div>`;
   out.hidden = false;
   await drawMap(r);
+  renderFixes();
   out.querySelector(".ov-layers").addEventListener("change", (e) => toggle(e.target.dataset.layer, e.target.checked));
   out.addEventListener("click", (e) => {
     const b = e.target.closest("[data-post]");
@@ -247,7 +322,8 @@ async function drawMap(r) {
       : p.layer === "hospital" ? `<b>${esc(p.name)}</b><br>${p.drive_min} min by road`
       : p.layer === "transit" ? `<b>${esc(p.name)}</b><br>${p.people.toLocaleString()} people (${esc(p.phase)}), ${p.peak_15min.toLocaleString()} in the busiest 15 min`
       : esc(p.street || p.name || p.hospital || "");
-    if (pop) layer.bindPopup(pop);
+    if (p.layer === "crowd_departure" || p.layer === "crowd_arrival") layer.bindPopup(() => fixForm(p), { minWidth: 240 });
+    else if (pop) layer.bindPopup(pop);
     layer.addTo(group(k));
   }
   toggle("crowd_arrival", false);

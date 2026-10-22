@@ -296,3 +296,9 @@ details.agency summary { cursor: pointer; }
 ol.posts { margin: 8px 0 4px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
 ol.posts button.link { text-align: left; padding: 0; color: var(--ink); text-decoration: none; }
 ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ov-fixes { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.ov-fixes ul { margin: 6px 0; padding-left: 18px; }
+.fix-form { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+.fix-form label { display: flex; flex-direction: column; gap: 2px; }
+.fix-form label:has(input[type=checkbox]) { flex-direction: row; align-items: center; gap: 6px; }
+.fix-form input[type=number] { width: 100%; }

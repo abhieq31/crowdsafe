@@ -113,10 +113,14 @@ def event_overview(
         raise ValueError("travel modes must add up to more than 0")
     modes = {k: v / total for k, v in modes.items() if v > 0}
 
+    # Corrections saved with the venue (by people who walked the streets), plus any passed in.
+    overrides = {**((venue_dict.get("surroundings") or {}).get("overrides") or {}), **(overrides or {})}
     net = StreetNetwork.from_overpass(osm, venue.origin, overrides)
     if not net.edges:
         raise ValueError("No streets found around the venue in the map data.")
     notes = list(net.notes)
+    if overrides:
+        notes.insert(0, f"{len(overrides)} street(s) use your corrections instead of OpenStreetMap's data.")
     for part in osm.get("missing", []):
         notes.append(
             f"The map servers did not send the {part}, so the plan is made without them. Run it again "
@@ -644,16 +648,32 @@ def _geojson(
                 }
             )
 
+    # One feature per street the crowd uses, so a street can be clicked and corrected on the map.
     for phase, ph in (("departure", departure), ("arrival", arrival)):
-        by_los: Dict[str, List[int]] = {}
+        by_way: Dict[int, List[int]] = {}
+        worst: Dict[int, float] = {}
         for eid in ph.people:
+            if ph.people[eid] < 20:
+                continue
             e = net.edges[eid]
-            total = ph.peak_event_ppm(eid) + D.public_ppm(e)
-            g = D.los(total / e.effective_walk_width())
-            if ph.people[eid] >= 20:
-                by_los.setdefault(g, []).append(eid)
-        for g, es in by_los.items():
-            lines(es, layer=f"crowd_{phase}", los=g)
+            per_m = (ph.peak_event_ppm(eid) + D.public_ppm(e)) / e.effective_walk_width()
+            by_way.setdefault(e.way, []).append(eid)
+            worst[e.way] = max(worst.get(e.way, 0.0), per_m)
+        for way, es in by_way.items():
+            e = net.edges[es[0]]
+            lines(
+                es,
+                layer=f"crowd_{phase}",
+                los=D.los(worst[way]),
+                way=way,
+                street=net.describe(es[0]),
+                walk_width_m=round(e.walk_width, 1),
+                road_width_m=round(e.road_width, 1),
+                width_estimated=e.estimated_width,
+                ppm_per_m=round(worst[way], 1),
+                closed_to_traffic=e.closed_to_traffic,
+                drivable=e.drive_fwd or e.drive_back,
+            )
     for cl in closures:
         lines([e.id for e in net.edges if e.way in cl["ways"]], layer="closure", street=cl["street"])
         lines(cl.get("diversion_edges", []), layer="diversion", street=cl["street"])

@@ -397,8 +397,14 @@ export async function initWhatIf({ online }) {
   $("#wi-add-zone").addEventListener("click", () => { draft.zones.push({ name: "", area: "", usable: 100 }); store.set("wi-draft", draft); renderBuilder(); });
   $("#wi-add-gate").addEventListener("click", () => { draft.gates.push({ name: "", from: "outside", to: 0, width: 3, stairs: false, closed: false }); store.set("wi-draft", draft); renderBuilder(); refreshVenue(); });
   $("#wi-download").addEventListener("click", () => {
-    const { venue } = currentVenue();
-    if (!venue) return;
+    const { venue: base } = currentVenue();
+    if (!base) return;
+    // Street corrections made in step 3 travel with the venue file.
+    let fixes = {};
+    try { fixes = JSON.parse(localStorage.getItem(`rtb:ov-fix:${base.id}`) || "{}"); } catch { /* none */ }
+    const venue = Object.keys(fixes).length
+      ? { ...base, surroundings: { ...(base.surroundings || {}), overrides: { ...(base.surroundings?.overrides || {}), ...fixes } } }
+      : base;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([JSON.stringify(venue, null, 2)], { type: "application/json" }));
     a.download = `${venue.id || "venue"}.json`;
