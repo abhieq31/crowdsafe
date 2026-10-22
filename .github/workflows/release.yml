@@ -2,7 +2,10 @@ name: Release
 # Push a tag like v0.2.0 to publish:
 #   - ghcr.io/abhieq31/roomtobreathe       (control-room server)  linux/amd64 + linux/arm64
 #   - ghcr.io/abhieq31/roomtobreathe-edge  (camera device, model included)
-#   - a GitHub release with the Python wheel, so  pip install <wheel URL>  works without git
+#   - a GitHub release with the wheel and sdist
+#   - the same files on PyPI (pip install roomtobreathe), via Trusted Publishing: no token is stored.
+#     One-time setup on pypi.org: add a trusted publisher for owner abhieq31, repo roomtobreathe,
+#     workflow release.yml, environment pypi.
 on:
   push:
     tags: ["v*"]
@@ -43,16 +46,45 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=Apache-2.0
 
-  wheel:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install build && python -m build
+      - run: pip install build twine && python -m build && twine check --strict dist/*
       - name: Check the version matches the tag
         run: test "v$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')" = "${{ github.ref_name }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - run: gh release create "${{ github.ref_name }}" dist/* --title "Room to Breathe ${{ github.ref_name }}" --notes-file docs/RELEASE_NOTES.md --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/roomtobreathe/
+    permissions:
+      id-token: write  # Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

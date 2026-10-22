@@ -1,24 +1,44 @@
-Room to Breathe v0.3.0 is the project's new name (formerly CrowdSafe) and adds a web app that needs no
-installation: **https://abhieq31.github.io/roomtobreathe/**
+**Room to Breathe 1.0** is the first public release of an open-source system that helps anyone who runs a
+gathering, from a temple committee to a national disaster authority, stop crowd crushes before they happen.
 
-### New
-- **Web app, nothing to install.** What-if studies, photo counting, capacity planning and the gate counter
-  all run in the browser. Live camera monitoring still runs on a computer at the venue
-  ([docs/DEPLOY.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md)).
-- **What-if studies on your own venue** (`roomtobreathe whatif`, `POST /api/whatif`, and the web app):
-  attendance, surge, a blocked gate or a full evacuation, each run twice, with nobody acting and with
-  operators approving the playbook at the first RED alert. It reports where and when each zone reaches
-  critical density, how many minutes of warning the RED alert gives, and how long an evacuation takes. In
-  the browser it runs the same Python engine through Pyodide, so the numbers are identical.
-- **Photo count:** DM-Count in the browser (WebGPU or WebAssembly). Mark a ground rectangle of known size to
-  get the people per m² and the densest square metre, and download it as a camera calibration file for
-  `roomtobreathe edge`. The photo never leaves the device.
+**Try it now, nothing to install:** https://abhieq31.github.io/roomtobreathe/
 
-### Fixed
-- A venue saved and loaded through the API had its usable-area share applied twice (the demo hall shrank
-  from 720 to 540 m²).
-- Engine ticks are 3x faster (stop-and-go detection is cached for 5 s).
+### What it does
+- **Is my event safe?** Find the venue on a map, trace where people will stand, tap each gate and enter the
+  expected crowd. You get one verdict (*Safe*, *Possible with precautions* or *Not safe*), the reasons worst
+  first, and a numbered list of what to change, including how much extra exit width would fix it. It checks
+  capacity with the largest exit blocked, crowding as people arrive, a sudden surge (with and without the
+  response plan) and a full evacuation.
+- **Live early warning at the venue.** Existing CCTV gives people per m² and crowd motion per zone. Alerts
+  say why they fired and how many minutes are left before critical density. Each one comes with a
+  pre-approved playbook (which gate to close or open, and what to announce in English, Hindi or Bengali)
+  that a named operator approves.
+- **Count a crowd from a photo**, a **gate counter** for volunteers, and a **permit check**, all in the
+  browser. Photos never leave the device.
+- **Open standards:** alerts export as CAP 1.2. Every action is recorded with who approved it.
 
-### Renamed
-- Package and command `roomtobreathe` (short alias `rtb`), environment variables `RTB_*`, images
-  `ghcr.io/abhieq31/roomtobreathe` and `roomtobreathe-edge`. Old GitHub links redirect.
+### New since v0.3.0
+- **Draw the venue on a map**: search anywhere in the world (OpenStreetMap, no account or key), trace zones,
+  and tap across gates. Areas and widths are measured for you.
+- **One-question planning**: the web app opens on *Plan an event* and gives a single verdict and fixes,
+  using the new `roomtobreathe.assess` engine (`rtb assess venue.json --people N`, `POST /api/assess`).
+- Fixed: playbook actions in one simulation leaked into the next one, so an evacuation could start with
+  nobody inside.
+
+### Install
+```bash
+pip install "roomtobreathe[server]"          # control room:   roomtobreathe demo  /  roomtobreathe serve
+pip install "roomtobreathe[vision,onnx]"     # camera device:  roomtobreathe setup && roomtobreathe edge
+docker run -p 8000:8000 ghcr.io/abhieq31/roomtobreathe
+```
+Deployment guide: [docs/DEPLOY.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md).
+
+### Read before relying on it
+Room to Breathe is **decision support**. Trained people decide and remain responsible. The default density
+model **undercounts the densest crowds by roughly 9–19%**
+([benchmark](https://github.com/abhieq31/roomtobreathe/blob/main/docs/vision.md#benchmark)), so combine
+cameras with gate counts. Calibrate thresholds and playbooks with your police, fire and medical teams before
+the event. There is no face recognition and no individual tracking
+([ETHICS.md](https://github.com/abhieq31/roomtobreathe/blob/main/ETHICS.md)).
+
+Field pilots, translations and reviews from crowd-safety practitioners are very welcome. Please open an issue.
