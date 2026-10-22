@@ -15,7 +15,7 @@ async function start() {
   if (manifest.sha256) wheel.searchParams.set("v", manifest.sha256); // a new engine never comes from cache
   await py.pyimport("micropip").install(wheel.href, { deps: false });
   py.runPython("import json\nfrom roomtobreathe.whatif import describe, run_whatif\nfrom roomtobreathe.assess import assess_event\n"
-    + "from roomtobreathe.surroundings import event_overview, overpass_query, render_html");
+    + "from roomtobreathe.surroundings import event_overview, merge_osm, overpass_queries, parse_osm, render_html");
   return py;
 }
 
@@ -26,17 +26,22 @@ self.onmessage = async (e) => {
     py.globals.set("venue_json", JSON.stringify(e.data.venue));
     py.globals.set("params_json", JSON.stringify(e.data.params));
     let out;
-    if (e.data.kind === "overpass_query") {
-      out = py.runPython("p = json.loads(params_json)\njson.dumps(overpass_query(p['lat'], p['lon'], p['radius_m']))");
+    if (e.data.kind === "overpass_queries") {
+      out = py.runPython("p = json.loads(params_json)\njson.dumps(overpass_queries(p['lat'], p['lon'], p['radius_m']))");
     } else if (e.data.kind === "overview") {
       postMessage({ status: "Routing the crowd and the traffic through the streets, and placing teams…" });
-      py.globals.set("osm_json", e.data.osm);
+      // osm: a list of downloaded parts (texts), or one uploaded file; missing: parts that failed
+      py.globals.set("osm_parts", JSON.stringify(e.data.osm));
+      py.globals.set("osm_missing", JSON.stringify(e.data.missing || []));
       out = py.runPython("p = json.loads(params_json)\n"
-        + "r = event_overview(json.loads(venue_json), p['attendance'], json.loads(osm_json), modes=p.get('modes'), "
+        + "osm = merge_osm([parse_osm(t) for t in json.loads(osm_parts)])\n"
+        + "m = json.loads(osm_missing)\n"
+        + "osm.update({'missing': m} if m else {})\n"
+        + "r = event_overview(json.loads(venue_json), p['attendance'], osm, modes=p.get('modes'), "
         + "arrival_minutes=p.get('arrival_minutes'), event_end_min=p.get('event_end_min'), "
         + "departure_minutes=p.get('departure_minutes'), public_level=p.get('public_level') or 1.0, radius_m=p.get('radius_m') or 1500)\n"
         + "json.dumps(r)");
-      py.globals.delete("osm_json");
+      py.globals.delete("osm_parts");
     } else if (e.data.kind === "overview_html") {
       py.globals.set("result_json", JSON.stringify(e.data.params));
       out = py.runPython("json.dumps(render_html(json.loads(result_json)))");

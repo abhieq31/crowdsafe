@@ -416,6 +416,9 @@ def merge_nearby(items: List[dict]) -> List[dict]:
         places = o.pop("_places", None)
         if places and len(places) > 1:
             named = sorted(places, key=lambda p: p.startswith("unnamed"))  # a named street reads better
-            o["place"] = named[0] + (f" (and {len(places) - 1} more spot nearby)" if len(places) == 2
-                                     else f" (and {len(places) - 1} more spots nearby)")
+            o["place"] = named[0] + (
+                f" (and {len(places) - 1} more spot nearby)"
+                if len(places) == 2
+                else f" (and {len(places) - 1} more spots nearby)"
+            )
     return out

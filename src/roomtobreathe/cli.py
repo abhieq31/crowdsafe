@@ -211,7 +211,7 @@ def cmd_assess(a) -> int:
 
 
 def cmd_overview(a) -> int:
-    from .surroundings import event_overview, load_or_fetch, parse_modes, render_html
+    from .surroundings import event_overview, load_or_fetch, parse_modes, parse_osm, render_html
 
     try:
         venue = json.loads(open(a.venue, encoding="utf-8").read())
@@ -224,7 +224,7 @@ def cmd_overview(a) -> int:
         return 1
     try:
         if a.osm:
-            osm = json.loads(open(a.osm, encoding="utf-8").read())
+            osm = parse_osm(open(a.osm, encoding="utf-8").read())
         else:
             print("Downloading streets, stations and hospitals from OpenStreetMap (cached for 30 days; "
                   "the first time can take a few minutes)…", file=sys.stderr)
@@ -391,7 +391,8 @@ def main(argv=None) -> int:
     ov.add_argument("--public-level", type=float, default=1.0,
                     help="normal pedestrians already on the streets: 0.5 quiet, 1 city evening, 2 market area")
     ov.add_argument("--radius", type=float, default=1500, help="metres of streets around the venue to model")
-    ov.add_argument("--osm", help="use this saved OpenStreetMap JSON instead of downloading")
+    ov.add_argument("--osm", help="use this map file instead of downloading: Overpass JSON, or .osm XML "
+                                  "(openstreetmap.org → Export)")
     ov.add_argument("--refresh", action="store_true", help="download fresh map data even if cached")
     ov.add_argument("--html", help="write the printable plan with a map to this file")
     ov.add_argument("--json", action="store_true")

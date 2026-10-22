@@ -17,7 +17,7 @@ const ROLE_ICON = { "Police": "👮", "Traffic police": "🚦", "Steward": "🦺
 const AGENCIES = ["Police", "Traffic police", "Health", "Organisers", "Transport operator", "Fire service"];
 const LOS = { A: "#2f9e5b", B: "#2f9e5b", C: "#d7a300", D: "#e36b0a", E: "#d42a2a", F: "#8b0000" };
 const RADIUS_M = 1500;
-let last = null, map = null, groups = null;
+let last = null, map = null, groups = null, mapFile = null;
 
 const status = (t) => { $("#ov-status").textContent = t; };
 
@@ -26,34 +26,70 @@ async function sha1(text) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Streets change slowly, so a copy is kept in this browser for 30 days (Cache API; falls back to no cache).
-async function fetchOsm(query) {
-  const key = `https://rtb.local/osm/${await sha1(query)}`;
+const PART_NAMES = ["streets", "main roads further out", "stations, stops, car parks, hospitals, police and fire stations"]; // as in osm.py
+const HEDGE_MS = 15_000; // if a server has not answered in 15 s, also ask the next one
+
+// One query, hedged across the servers: the first good answer wins and the others are cancelled.
+function fetchPart(query, onTry) {
+  return new Promise((resolve, reject) => {
+    const ctls = [], errors = [];
+    let next = 0, done = false, timer = null;
+    const finish = (fn, v) => { if (done) return; done = true; clearTimeout(timer); ctls.forEach((c) => c.abort()); fn(v); };
+    const launch = () => {
+      if (done || next >= MIRRORS.length) return;
+      const url = MIRRORS[next++], ctl = new AbortController();
+      ctls.push(ctl);
+      onTry?.(new URL(url).host);
+      const t = setTimeout(() => ctl.abort(), 150_000);
+      fetch(url, { method: "POST", body: new URLSearchParams({ data: query }), signal: ctl.signal })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+          const text = await r.text();
+          if (!text.trimStart().startsWith("{") || !text.includes('"elements"')) throw new Error("not map data");
+          finish(resolve, text);
+        })
+        .catch((e) => {
+          if (done) return;
+          errors.push(`${new URL(url).host}: ${e.name === "AbortError" ? "timed out" : e.message}`);
+          if (errors.length === MIRRORS.length) finish(reject, new Error(errors.join("; ")));
+          else { clearTimeout(timer); launch(); }
+        })
+        .finally(() => clearTimeout(t));
+      clearTimeout(timer);
+      timer = setTimeout(launch, HEDGE_MS);
+    };
+    launch();
+  });
+}
+
+async function cached(key, make) {
   let cache = null;
-  try { cache = await caches.open("rtb-osm-v1"); } catch { /* private mode or http */ }
+  try { cache = await caches.open("rtb-osm-v2"); } catch { /* private mode or plain http */ }
   if (cache) {
     const hit = await cache.match(key).catch(() => null);
     if (hit && Date.now() - Number(hit.headers.get("x-saved") || 0) < 30 * 864e5) return hit.text();
   }
-  const errors = [];
-  for (const url of MIRRORS) {
-    status(`Downloading streets, stations and hospitals from OpenStreetMap (${new URL(url).host}). The free map servers can take a minute or two…`);
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 150_000);
-    try {
-      const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data: query }), signal: ctl.signal });
-      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-      const text = await r.text();
-      if (!text.trimStart().startsWith("{") || !text.includes('"elements"')) throw new Error("not map data");
-      if (cache) await cache.put(key, new Response(text, { headers: { "x-saved": String(Date.now()) } })).catch(() => {});
-      return text;
-    } catch (e) {
-      errors.push(`${new URL(url).host}: ${e.name === "AbortError" ? "timed out" : e.message}`);
-    } finally {
-      clearTimeout(timer);
-    }
+  const text = await make();
+  if (cache) await cache.put(key, new Response(text, { headers: { "x-saved": String(Date.now()) } })).catch(() => {});
+  return text;
+}
+
+// Streets change slowly, so each part is kept in this browser for 30 days. The three parts download in
+// parallel; only the streets are essential, the rest is reported as missing if it fails.
+async function fetchOsm(queries) {
+  const state = queries.map(() => "waiting");
+  const show = () => status(`Downloading from OpenStreetMap's free servers: ${PART_NAMES.map((n, i) => `${n} ${state[i]}`).join(" · ")}. This can take a minute or two.`);
+  show();
+  const results = await Promise.allSettled(queries.map(async (q, i) => {
+    const text = await cached(`https://rtb.local/osm/${await sha1(q)}`, () => fetchPart(q, (host) => { state[i] = `(asking ${host})`; show(); }));
+    state[i] = "✓"; show();
+    return text;
+  }));
+  if (results[0].status === "rejected") {
+    throw new Error(`the map servers did not send the streets (${results[0].reason.message}). They are often busy: try again in a few minutes, or upload a map file.`);
   }
-  throw new Error("the OpenStreetMap servers did not answer (" + errors.join("; ") + "). Try again in a few minutes.");
+  return { parts: results.filter((r) => r.status === "fulfilled").map((r) => r.value),
+    missing: results.map((r, i) => (r.status === "rejected" ? PART_NAMES[i] : null)).filter(Boolean) };
 }
 
 function readParams() {
@@ -87,14 +123,19 @@ async function run(e) {
     if (usingServer()) {
       status("Downloading the streets and planning on the control-room server (the first time can take a few minutes)…");
       const resp = await fetch("api/overview", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venue, attendance: p.attendance, options: p }) });
+        body: JSON.stringify({ venue, attendance: p.attendance, options: p, ...(mapFile ? { osm_text: mapFile } : {}) }) });
       if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || resp.statusText);
       r = await resp.json();
     } else {
       status("Starting the engine in your browser…");
-      const query = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_query", {}, "#ov-status");
-      const osm = await fetchOsm(query);
-      r = await inBrowserEngine(venue, p, "overview", { osm }, "#ov-status");
+      let osm;
+      if (mapFile) {
+        osm = { parts: [mapFile], missing: [] };
+      } else {
+        const queries = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_queries", {}, "#ov-status");
+        osm = await fetchOsm(queries);
+      }
+      r = await inBrowserEngine(venue, p, "overview", { osm: osm.parts, missing: osm.missing }, "#ov-status");
     }
     last = r;
     await render(r);
@@ -248,4 +289,9 @@ async function printable() {
 
 export function initOverview() {
   $("#ov-form")?.addEventListener("submit", run);
+  $("#ov-file")?.addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    mapFile = f ? await f.text() : null;
+    $("#ov-file-name").textContent = f ? `Using ${f.name} (${(f.size / 1e6).toFixed(1)} MB) instead of downloading.` : "";
+  });
 }

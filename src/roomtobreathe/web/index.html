@@ -193,6 +193,9 @@
             <select name="public_level"><option value="0.5">Quiet (residential)</option><option value="1" selected>Normal city evening</option>
               <option value="2">Busy (market, station area)</option></select></label>
           <div class="btns"><button class="primary" id="ov-run">Plan the surroundings</button></div>
+          <p class="small muted ov-file">Map servers busy, or no internet at the control room? Use a map file instead:
+            <label class="link">choose an .osm or .json file<input type="file" id="ov-file" accept=".osm,.xml,.json,application/json" hidden></label>
+            (on openstreetmap.org: zoom to the area and press <i>Export</i>). <span id="ov-file-name"></span></p>
         </form>
         <div id="ov-status" class="small muted" role="status"></div>
         <div id="ov-out" hidden></div>

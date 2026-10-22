@@ -185,13 +185,15 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
     def overview(body: dict):
         """The venue and its surroundings (roomtobreathe.surroundings). Downloads OpenStreetMap data unless
         ``osm`` is given; the server caches it for 30 days. Read-only: it never touches the live engine."""
-        from ..surroundings import event_overview, load_or_fetch, parse_modes
+        from ..surroundings import event_overview, load_or_fetch, parse_modes, parse_osm
 
         try:
             venue = body.get("venue") or engine.venue.to_dict()
             o = body.get("options") or {}
             radius = float(o.get("radius_m") or 1500)
             osm = body.get("osm")
+            if osm is None and body.get("osm_text"):
+                osm = parse_osm(body["osm_text"])
             if osm is None:
                 if not venue.get("origin"):
                     raise ValueError("the venue has no location ('origin'); draw it on the map first")

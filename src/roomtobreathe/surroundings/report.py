@@ -36,46 +36,79 @@ def render_html(r: Dict, title: str = "") -> str:
     lvl, col = LEVEL[r["verdict"]]
     checks = "".join(
         f'<li><b style="color:{LEVEL[c["level"]][1]}">{_e(LEVEL[c["level"]][0])}</b> · <b>{_e(c["title"])}</b>'
-        f'<br><span class="muted">{_e(c["detail"])}</span></li>' for c in r["checks"])
+        f'<br><span class="muted">{_e(c["detail"])}</span></li>'
+        for c in r["checks"]
+    )
     by_agency: Dict[str, List[dict]] = {}
     for d in r["deployments"]:
         by_agency.setdefault(d["agency"], []).append(d)
-    totals = "".join(f"<tr><td>{_e(x['agency'])}</td><td>{_e(x['role'])}</td><td class=n>{x['count']:,}</td>"
-                     f"<td class=n>{x['posts']}</td></tr>" for x in r["totals"])
+    totals = "".join(
+        f"<tr><td>{_e(x['agency'])}</td><td>{_e(x['role'])}</td><td class=n>{x['count']:,}</td>"
+        f"<td class=n>{x['posts']}</td></tr>"
+        for x in r["totals"]
+    )
     sections = []
     for ag in sorted(by_agency, key=lambda a: AGENCY_ORDER.index(a) if a in AGENCY_ORDER else 99):
         rows = "".join(
             f"<tr><td class=n>{i + 1}</td><td>{_e(d['role'])}</td><td class=n>{d['count']}</td><td>{_e(d['place'])}"
             f"<br><small>{_ll(d.get('lat_lon'))}</small></td><td>{_e(d['why'])}</td><td>{_e(d['when'])}</td></tr>"
-            for i, d in enumerate(by_agency[ag]))
+            for i, d in enumerate(by_agency[ag])
+        )
         extra = ""
         if ag == "Traffic police" and r["traffic"]["closures"]:
-            extra = "<h3>Road closures and diversions</h3><table><tr><th>Close to traffic</th><th>When</th>" \
-                    "<th>Diversion via</th><th>Extra distance</th></tr>" + "".join(
-                        f"<tr><td>{_e(c['street'])} ({c['length_m']:,} m)</td><td>{_e(c['when'])}</td>"
-                        f"<td>{_e(', '.join(c['diversion_via']) or 'local access only')}</td>"
-                        f"<td class=n>{_extra(c['diversion_extra_m'])}</td></tr>"
-                        for c in r["traffic"]["closures"]) + "</table>"
+            extra = (
+                "<h3>Road closures and diversions</h3><table><tr><th>Close to traffic</th><th>When</th>"
+                "<th>Diversion via</th><th>Extra distance</th></tr>"
+                + "".join(
+                    f"<tr><td>{_e(c['street'])} ({c['length_m']:,} m)</td><td>{_e(c['when'])}</td>"
+                    f"<td>{_e(', '.join(c['diversion_via']) or 'local access only')}</td>"
+                    f"<td class=n>{_extra(c['diversion_extra_m'])}</td></tr>"
+                    for c in r["traffic"]["closures"]
+                )
+                + "</table>"
+            )
         if ag == "Health":
             em = r["emergency"]
-            hosp = "".join(f"<li>{_e(h['name'])}: {h['drive_min']:g} min by road with event traffic ({_e(h['suitability'])})</li>"
-                           for h in em["hospitals"]) or "<li>None found on the map: agree receiving hospitals with the health department.</li>"
+            hosp = (
+                "".join(
+                    f"<li>{_e(h['name'])}: {h['drive_min']:g} min by road with event traffic ({_e(h['suitability'])})</li>"
+                    for h in em["hospitals"]
+                )
+                or "<li>None found on the map: agree receiving hospitals with the health department.</li>"
+            )
             cor = em["corridor"]
-            cor_txt = (f"<p><b>Ambulance route</b> from {_e(cor['hospital'])} to {_e(cor['gate'])}: "
-                       f"{cor['length_m']:,} m, about {cor['drive_min']:g} min, via {_e(', '.join(cor['via']) or 'local streets')}. "
-                       + ("It avoids the departing crowd." if not cor["shared_with_crowd"] else
-                          "Keep one lane coned off where it meets the crowd: "
-                          + _e(", ".join(f"{s['street']} ({s['length_m']} m)" for s in cor["shared_with_crowd"])) + ".")
-                       + "</p>") if cor.get("found") else ""
+            cor_txt = (
+                (
+                    f"<p><b>Ambulance route</b> from {_e(cor['hospital'])} to {_e(cor['gate'])}: "
+                    f"{cor['length_m']:,} m, about {cor['drive_min']:g} min, via {_e(', '.join(cor['via']) or 'local streets')}. "
+                    + (
+                        "It avoids the departing crowd."
+                        if not cor["shared_with_crowd"]
+                        else "Keep one lane coned off where it meets the crowd: "
+                        + _e(", ".join(f"{s['street']} ({s['length_m']} m)" for s in cor["shared_with_crowd"]))
+                        + "."
+                    )
+                    + "</p>"
+                )
+                if cor.get("found")
+                else ""
+            )
             extra = f"<h3>Receiving hospitals</h3><ul>{hosp}</ul>{cor_txt}"
-        sections.append(f'<section class="agency"><h2>{_e(ag)}</h2><table><tr><th>#</th><th>Role</th><th>Staff</th>'
-                        f'<th>Where</th><th>Why</th><th>When</th></tr>{rows}</table>{extra}</section>')
-    transit = "".join(f"<tr><td>{_e(x['name'])}</td><td>{_e(x['mode'])}</td><td>{_e(x['phase'])}</td>"
-                      f"<td class=n>{x['people']:,}</td><td class=n>{x['peak_15min']:,}</td></tr>" for x in r["transit"][:14])
+        sections.append(
+            f'<section class="agency"><h2>{_e(ag)}</h2><table><tr><th>#</th><th>Role</th><th>Staff</th>'
+            f"<th>Where</th><th>Why</th><th>When</th></tr>{rows}</table>{extra}</section>"
+        )
+    transit = "".join(
+        f"<tr><td>{_e(x['name'])}</td><td>{_e(x['mode'])}</td><td>{_e(x['phase'])}</td>"
+        f"<td class=n>{x['people']:,}</td><td class=n>{x['peak_15min']:,}</td></tr>"
+        for x in r["transit"][:14]
+    )
     chokes = "".join(
         f"<tr><td>{_e(s['street'])}</td><td>{_e(s['phase'])}</td><td style='color:{LOS_COLOR[s['los']]}'><b>{s['los']}</b></td>"
         f"<td class=n>{s['load']:.0%}</td><td class=n>{s['walk_width_m']:g}{' (est.)' if s['width_estimated'] else ''}</td>"
-        f"<td>{_e(s['fixes'][0] if s.get('fixes') else '')}</td></tr>" for s in r["choke_points"][:20])
+        f"<td>{_e(s['fixes'][0] if s.get('fixes') else '')}</td></tr>"
+        for s in r["choke_points"][:20]
+    )
     notes = "".join(f"<li>{_e(n)}</li>" for n in r["notes"] + r["rules_of_thumb"])
     modes = ", ".join(f"{k} {v:.0%}" for k, v in r["modes"].items())
     geo = json.dumps(r["geojson"]).replace("</", "<\\/")
@@ -98,9 +131,9 @@ ul.checks{{padding-left:18px}} ul.checks li{{margin-bottom:6px}}
 @media print{{#map{{height:380px;break-inside:avoid}} section{{break-inside:auto}} a{{color:inherit;text-decoration:none}} button{{display:none}}}}
 </style></head><body>
 <h1>{_e(title)}</h1>
-<div class="muted">{r['attendance']:,} people · arrival over {t['arrival_minutes']:g} min · event ends at minute {t['event_end_min']:g}
- · departure over {t['departure_minutes']:g} min · travel: {_e(modes)}</div>
-<div class="verdict">{_e(lvl)}: {_e(r['headline'])}</div>
+<div class="muted">{r["attendance"]:,} people · arrival over {t["arrival_minutes"]:g} min · event ends at minute {t["event_end_min"]:g}
+ · departure over {t["departure_minutes"]:g} min · travel: {_e(modes)}</div>
+<div class="verdict">{_e(lvl)}: {_e(r["headline"])}</div>
 <ul class="checks">{checks}</ul>
 <div id="map" role="img" aria-label="Map of crowd routes, closures, ambulance route and deployments"></div>
 <div class="legend small"><span><i style="background:#2f9e5b"></i>comfortable</span><span><i style="background:#d7a300"></i>busy</span>
@@ -108,11 +141,11 @@ ul.checks{{padding-left:18px}} ul.checks li{{margin-bottom:6px}}
 <span><i style="background:#555;height:3px;border-top:2px dashed #000"></i>closed to traffic</span><span><i style="background:#7a3fd1"></i>diversion</span>
 <span><i style="background:#0a84ff"></i>ambulance route</span></div>
 <h2>Staff summary</h2><div class="scroll"><table><tr><th>Agency</th><th>Role</th><th>Staff</th><th>Posts</th></tr>{totals}</table></div>
-{''.join(sections)}
-<h2>Outside choke points</h2><div class="scroll"><table><tr><th>Street</th><th>When</th><th>Level</th><th>Load</th><th>Footpath m</th><th>First fix</th></tr>{chokes or '<tr><td colspan=6>None.</td></tr>'}</table></div>
-<h2>Stations and stops</h2><div class="scroll"><table><tr><th>Place</th><th>Mode</th><th>When</th><th>People</th><th>Busiest 15 min</th></tr>{transit or '<tr><td colspan=5>None.</td></tr>'}</table></div>
+{"".join(sections)}
+<h2>Outside choke points</h2><div class="scroll"><table><tr><th>Street</th><th>When</th><th>Level</th><th>Load</th><th>Footpath m</th><th>First fix</th></tr>{chokes or "<tr><td colspan=6>None.</td></tr>"}</table></div>
+<h2>Stations and stops</h2><div class="scroll"><table><tr><th>Place</th><th>Mode</th><th>When</th><th>People</th><th>Busiest 15 min</th></tr>{transit or "<tr><td colspan=5>None.</td></tr>"}</table></div>
 <h2>Assumptions and data</h2><ul>{notes}</ul>
-<p class="small muted">Room to Breathe {_e(r.get('version', ''))} · Map data © OpenStreetMap contributors (ODbL).
+<p class="small muted">Room to Breathe {_e(r.get("version", ""))} · Map data © OpenStreetMap contributors (ODbL).
 This plan is decision support: police, traffic, health and the organisers must check it on the ground and adapt it.</p>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>

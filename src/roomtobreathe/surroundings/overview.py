@@ -117,6 +117,11 @@ def event_overview(
     if not net.edges:
         raise ValueError("No streets found around the venue in the map data.")
     notes = list(net.notes)
+    for part in osm.get("missing", []):
+        notes.append(
+            f"The map servers did not send the {part}, so the plan is made without them. Run it again "
+            "later for a complete plan."
+        )
     accesses, n = D.gate_access(venue, net)
     notes += n
     usable = [a for a in accesses if a.capacity > 0]

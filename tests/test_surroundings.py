@@ -10,7 +10,16 @@ import math
 import pytest
 
 from roomtobreathe.surroundings import dispersal as D
-from roomtobreathe.surroundings import event_overview, overpass_query, parse_modes, render_html
+from roomtobreathe.surroundings import (
+    event_overview,
+    merge_osm,
+    overpass_queries,
+    overpass_query,
+    parse_modes,
+    parse_osm,
+    render_html,
+)
+from roomtobreathe.surroundings import osm as osm_mod
 from roomtobreathe.surroundings.network import StreetNetwork, hospital_score, to_latlon
 from roomtobreathe.surroundings.traffic import diversion
 from roomtobreathe.venue import Venue
@@ -287,3 +296,79 @@ def test_runs_fast_enough_for_a_browser():
     event_overview(venue(), 20000, town(), radius_m=450)
     assert time.perf_counter() - t < 5
     assert math.isfinite(t)
+
+
+# ------------------------------------------------------------------ map data
+def to_xml(data):
+    out = ['<?xml version="1.0"?><osm version="0.6">']
+    for e in data["elements"]:
+        tags = "".join(f'<tag k="{k}" v="{v}"/>' for k, v in e.get("tags", {}).items())
+        if e["type"] == "node":
+            out.append(f'<node id="{e["id"]}" lat="{e["lat"]}" lon="{e["lon"]}">{tags}</node>')
+        else:
+            nds = "".join(f'<nd ref="{n}"/>' for n in e["nodes"])
+            out.append(f'<way id="{e["id"]}">{nds}{tags}</way>')
+    return "".join(out) + "</osm>"
+
+
+def test_osm_xml_export_gives_the_same_plan(small):
+    data = parse_osm(to_xml(town()))
+    r = event_overview(venue(), 3000, data, radius_m=450)
+    assert r["totals"] == small["totals"]
+    with pytest.raises(ValueError):
+        parse_osm("hello")
+
+
+def test_query_parts_and_merge():
+    qs = overpass_queries(22.5, 88.3, 1500)
+    assert len(qs) == 3 and all(q.startswith("[out:json]") for q in qs)
+    a = {"elements": [{"type": "node", "id": 1, "lat": 0, "lon": 0}]}
+    b = {"elements": [{"type": "node", "id": 1, "lat": 0, "lon": 0, "tags": {"amenity": "police"}},
+                      {"type": "node", "id": 2, "lat": 1, "lon": 1}]}
+    m = merge_osm([a, b])
+    assert len(m["elements"]) == 2 and any(e.get("tags") for e in m["elements"])
+
+
+def test_download_survives_a_missing_part(monkeypatch):
+    full = town()
+    streets = {"elements": [e for e in full["elements"] if e["id"] < 90000]}
+
+    def fake(query, timeout=0, mirrors=None, hedge_s=0):
+        if "amenity" in query:
+            raise RuntimeError("all servers busy")
+        return streets
+
+    monkeypatch.setattr(osm_mod, "fetch_part", fake)
+    data = osm_mod.fetch_osm(*ORIGIN, 450)
+    assert data["missing"] == [osm_mod.PART_NAMES[2]]
+    r = event_overview(venue(), 3000, data, radius_m=450)
+    assert any("did not send" in n for n in r["notes"])
+    assert not r["emergency"]["hospitals"]
+
+
+def test_download_needs_the_streets(monkeypatch):
+    def fake(query, timeout=0, mirrors=None, hedge_s=0):
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(osm_mod, "fetch_part", fake)
+    with pytest.raises(RuntimeError):
+        osm_mod.fetch_osm(*ORIGIN, 450)
+
+
+def test_hedged_request_takes_the_first_good_answer(monkeypatch):
+    import time as _t
+
+    calls = []
+
+    def post(url, query, timeout):
+        calls.append(url)
+        if url == "a":
+            _t.sleep(0.5)  # slow server
+            return {"elements": ["slow"]}
+        if url == "b":
+            raise OSError("502")
+        return {"elements": ["fast"]}
+
+    monkeypatch.setattr(osm_mod, "_post", post)
+    out = osm_mod.fetch_part("q", mirrors=["a", "b", "c"], hedge_s=0.05)
+    assert out == {"elements": ["fast"]} and calls[:3] == ["a", "b", "c"]
