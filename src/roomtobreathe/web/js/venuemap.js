@@ -21,7 +21,7 @@ function load(tag, attrs) {
     document.head.appendChild(el);
   });
 }
-async function loadLibs() {
+export async function loadLibs() {
   if (window.L) return window.L;
   await load("link", { rel: "stylesheet", href: LEAFLET + "leaflet.css" });
   await load("script", { src: LEAFLET + "leaflet.js" });

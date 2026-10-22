@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Optional, Set
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -180,6 +180,46 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
                                 float(body.get("arrival_minutes") or 60))
         except (KeyError, TypeError, ValueError) as e:
             raise HTTPException(400, f"invalid request: {e}") from e
+
+    @app.post("/api/overview")
+    def overview(body: dict):
+        """The venue and its surroundings (roomtobreathe.surroundings). Downloads OpenStreetMap data unless
+        ``osm`` is given; the server caches it for 30 days. Read-only: it never touches the live engine."""
+        from ..surroundings import event_overview, load_or_fetch, parse_modes, parse_osm
+
+        try:
+            venue = body.get("venue") or engine.venue.to_dict()
+            o = body.get("options") or {}
+            radius = float(o.get("radius_m") or 1500)
+            osm = body.get("osm")
+            if osm is None and body.get("osm_text"):
+                osm = parse_osm(body["osm_text"])
+            if osm is None:
+                if not venue.get("origin"):
+                    raise ValueError("the venue has no location ('origin'); draw it on the map first")
+                osm = load_or_fetch(venue["origin"][0], venue["origin"][1], radius)
+            modes = o.get("modes")
+            if isinstance(modes, str):
+                modes = parse_modes(modes)
+            return event_overview(venue, int(body["attendance"]), osm, modes=modes,
+                                  arrival_minutes=o.get("arrival_minutes"), event_end_min=o.get("event_end_min"),
+                                  departure_minutes=o.get("departure_minutes"),
+                                  public_level=float(o.get("public_level") or 1.0), radius_m=radius)
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(400, f"invalid request: {e}") from e
+        except RuntimeError as e:  # map servers unreachable
+            raise HTTPException(503, str(e)) from e
+
+    @app.post("/api/overview/html")
+    def overview_html(result: dict, agency: str = ""):
+        """The printable plan (HTML) for a result from POST /api/overview; ``?agency=Police`` for one
+        agency's briefing sheet."""
+        from ..surroundings import render_html
+
+        try:
+            return HTMLResponse(render_html(result, agency=agency))
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(400, f"not an overview result: {e}") from e
 
     @app.post("/api/whatif")
     def whatif(body: dict):

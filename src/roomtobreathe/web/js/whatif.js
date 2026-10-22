@@ -93,6 +93,7 @@ function draftToVenue() {
     const d = { id: `G${i + 1}`, name: g.name || `Gate ${i + 1}`, from: ref(g.from), to: ref(g.to), width_m: Number(g.width) || 0 };
     if (g.stairs) d.stairs = true;
     if (g.closed) d.open = false;
+    if (draft.origin && g.ll?.length >= 2) d.line = [g.ll[0], g.ll[g.ll.length - 1]].map((p) => round2(toLocal(draft.origin, p)));
     return d;
   });
   if (!zones.length) problems.push("Add at least one zone.");
@@ -156,6 +157,18 @@ function engineWorker() {
   }
   return worker;
 }
+// The browser engine (Pyodide worker); also used by overview.js. ``extra`` rides along to the worker.
+export function inBrowserEngine(venue, params, kind, extra = {}, status = null) {
+  if (pending) return Promise.reject(new Error("the engine is busy with another calculation"));
+  if (status) statusEl = status;
+  return new Promise((resolve, reject) => {
+    pending = { resolve, reject };
+    engineWorker().postMessage({ kind, venue, params, ...extra });
+  });
+}
+export const usingServer = () => useServer;
+export const venueForChecks = () => currentVenue();
+
 async function runEngine(venue, params, kind = "whatif") {
   if (useServer) {
     const body = kind === "assess" ? { venue, ...params } : { venue, params };
@@ -384,8 +397,14 @@ export async function initWhatIf({ online }) {
   $("#wi-add-zone").addEventListener("click", () => { draft.zones.push({ name: "", area: "", usable: 100 }); store.set("wi-draft", draft); renderBuilder(); });
   $("#wi-add-gate").addEventListener("click", () => { draft.gates.push({ name: "", from: "outside", to: 0, width: 3, stairs: false, closed: false }); store.set("wi-draft", draft); renderBuilder(); refreshVenue(); });
   $("#wi-download").addEventListener("click", () => {
-    const { venue } = currentVenue();
-    if (!venue) return;
+    const { venue: base } = currentVenue();
+    if (!base) return;
+    // Street corrections made in step 3 travel with the venue file.
+    let fixes = {};
+    try { fixes = JSON.parse(localStorage.getItem(`rtb:ov-fix:${base.id}`) || "{}"); } catch { /* none */ }
+    const venue = Object.keys(fixes).length
+      ? { ...base, surroundings: { ...(base.surroundings || {}), overrides: { ...(base.surroundings?.overrides || {}), ...fixes } } }
+      : base;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([JSON.stringify(venue, null, 2)], { type: "application/json" }));
     a.download = `${venue.id || "venue"}.json`;

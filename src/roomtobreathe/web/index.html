@@ -172,6 +172,35 @@
 
       <section class="card verdict-card" id="as-result" hidden aria-live="polite"></section>
 
+      <section class="card step" id="ov-card">
+        <h2 class="step-h"><span class="num">3</span> The area around the venue</h2>
+        <p class="small">How the crowd gets there and home again through the streets, stations and stops; what it does to
+          traffic; how ambulances get in; and <b>where to place police, traffic police, medical teams and stewards</b>.
+          Uses free OpenStreetMap data. Needs the venue drawn on the map in step 1.</p>
+        <form id="ov-form" class="form ov-form">
+          <fieldset class="modes"><legend>How do people travel? <span class="small muted">(% of the crowd)</span></legend>
+            <label>Metro <input name="metro" type="number" min="0" max="100" value="25"></label>
+            <label>Train <input name="rail" type="number" min="0" max="100" value="10"></label>
+            <label>Bus <input name="bus" type="number" min="0" max="100" value="25"></label>
+            <label>Ferry <input name="ferry" type="number" min="0" max="100" value="0"></label>
+            <label>Car / taxi <input name="car" type="number" min="0" max="100" value="20"></label>
+            <label>On foot <input name="walk" type="number" min="0" max="100" value="20"></label>
+          </fieldset>
+          <label>Event ends after
+            <select name="duration"><option value="60">1 hour</option><option value="120" selected>2 hours</option>
+              <option value="180">3 hours</option><option value="240">4 hours</option><option value="360">6 hours</option></select></label>
+          <label>Usual footfall on these streets
+            <select name="public_level"><option value="0.5">Quiet (residential)</option><option value="1" selected>Normal city evening</option>
+              <option value="2">Busy (market, station area)</option></select></label>
+          <div class="btns"><button class="primary" id="ov-run">Plan the surroundings</button></div>
+          <p class="small muted ov-file">Map servers busy, or no internet at the control room? Use a map file instead:
+            <label class="link">choose an .osm or .json file<input type="file" id="ov-file" accept=".osm,.xml,.json,application/json" hidden></label>
+            (on openstreetmap.org: zoom to the area and press <i>Export</i>). <span id="ov-file-name"></span></p>
+        </form>
+        <div id="ov-status" class="small muted" role="status"></div>
+        <div id="ov-out" hidden></div>
+      </section>
+
       <details class="card advanced" id="wi-advanced">
         <summary>Try your own scenario <span class="small muted">for planners: surges, blocked gates, evacuations</span></summary>
         <form id="wi-form" class="form two">
