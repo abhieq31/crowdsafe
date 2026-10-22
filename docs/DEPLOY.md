@@ -89,7 +89,7 @@ command line (`roomtobreathe assess my_venue.json --people 12000`).
 ### 3.1 Describe the venue
 
 ```bash
-pip install "roomtobreathe[server] @ https://github.com/abhieq31/roomtobreathe/releases/download/v0.3.0/roomtobreathe-0.3.0-py3-none-any.whl"
+pip install "roomtobreathe[server]"
 roomtobreathe venue new my_venue.json
 ```
 
@@ -136,7 +136,7 @@ It prints the address other devices use, e.g. `http://192.168.1.20:8000/`. Open 
 ### Each camera device
 
 ```bash
-pip install "roomtobreathe[vision,onnx] @ https://github.com/abhieq31/roomtobreathe/releases/download/v0.3.0/roomtobreathe-0.3.0-py3-none-any.whl"
+pip install "roomtobreathe[vision,onnx]"
 roomtobreathe setup        # camera address, calibration file, control-room address, access code, model
 roomtobreathe check        # must end with READY
 ```
