@@ -36,7 +36,9 @@ arriving and leaving. It finds the outside choke points, which roads to close (e
 junctions where crowd meets traffic. It names the receiving hospitals with drive times under event traffic,
 and plans an ambulance route that avoids the crowd. Then it says **where to place police, traffic police,
 first aid, ambulances, stewards and station staff, how many, when and why**, on one map with a printable plan
-for every agency. On the command line: `rtb overview venue.json --people 60000 --html plan.html`.
+for every agency, plus a briefing sheet for each agency. If a street on the map is wrong, tap it to correct its
+footpath width or mark it closed or blocked, then re-plan in seconds. On the command line:
+`rtb overview venue.json --people 60000 --html plan.html --briefings briefings/`.
 How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
 
 <p align="center"><img src="https://raw.githubusercontent.com/abhieq31/roomtobreathe/main/docs/img/overview.jpg" alt="Event overview around Eden Gardens: crowd routes, road closures, diversions, and every team's post" width="760"></p>

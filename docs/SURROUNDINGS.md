@@ -17,6 +17,7 @@ the venue *together with* its surroundings, for every agency at once.
 | Where do crowd and traffic meet? | Conflict junctions, each with a traffic police post |
 | How do ambulances get in? | Receiving hospitals by suitability and drive time **with event traffic**; an ambulance route that avoids the crowd |
 | Who goes where, when, and why? | Every post: role, staff, place, reason, time window, grouped by agency |
+| What does each agency need to know? | A briefing sheet per agency (its posts, its map, its facts) and every post as CSV |
 
 ## Using it
 
@@ -27,9 +28,24 @@ rtb overview my_venue.json --people 60000 \
 
 The venue must be drawn on the map (it needs a location, and gates need their positions). The first run
 downloads streets, stations and hospitals from OpenStreetMap's free Overpass servers. This can take 1-3
-minutes, and the data is then cached for 30 days. `--osm file.json` uses a saved copy, for offline control
-rooms. Options: `--arrival-minutes`, `--end-min`, `--departure-minutes`, `--public-level` (0.5 quiet,
-1 city evening, 2 market area) and `--radius`.
+minutes, and the data is then cached for 30 days. The download runs as three requests in parallel (streets,
+main roads further out, places), each **hedged** across four public servers: if one has not answered in 15 s,
+the next is asked as well. Only the streets are essential: if the places fail, the plan is made without
+them and says so. Options: `--arrival-minutes`, `--end-min`, `--departure-minutes`, `--public-level` (0.5 quiet,
+1 city evening, 2 market area) and `--radius`. `--briefings DIR` writes one briefing sheet per agency plus `posts.csv`.
+
+**No internet, or the servers are busy?** Plan from a map file: on openstreetmap.org, zoom to the area and
+press *Export* (an `.osm` file), or save Overpass JSON from overpass-turbo.eu. Use *choose an .osm or .json
+file* in the web app, or `--osm file`.
+
+### Correct the map
+
+OpenStreetMap almost never has footpath widths, and it does not know about tomorrow's market stalls. Tap a
+coloured street on the overview map to set its **real footpath width**, mark it **closed to traffic** for the
+event, or **blocked** for people on foot. A correction on a named street applies to the whole street. Re-plan
+takes seconds, because the map data is not downloaded again. Corrections are kept per venue and saved in the
+venue file (`"surroundings": {"overrides": {"name:Strand Road": {"walk_width": 6}}}`), so the police, the
+organisers and the council all plan from the same corrected streets.
 
 ## Method
 
@@ -51,16 +67,20 @@ rooms. Options: `--arrival-minutes`, `--end-min`, `--departure-minutes`, `--publ
 6. **Closures.** The worst overflowing streets within 800 m walk of a gate (level E/F, drivable, not
    motorway or trunk) are closed to traffic for the departure, with at most 8 grouped by street name. The
    crowd is then routed again with the carriageway added to the footpath.
-7. **Vehicles.** Car share ÷ people per vehicle (2.2). Vehicles come from every main road entering the area,
+7. **Staggered exit.** If streets still overflow after the closures, the engine computes how long the
+   departure must be spread over to bring the worst street back to level D, at most 2 hours. It runs the
+   departure again at that pace and adopts it in the plan if it reduces the overflow. The plan then names the
+   streets that are still too narrow.
+8. **Vehicles.** Car share ÷ people per vehicle (2.2). Vehicles come from every main road entering the area,
    weighted by capacity, and go to car parks and pick-up points. Routing uses BPR delays with normal traffic
    at a typical evening share of capacity. Pick-up points are placed on decent roads 250-800 m walk from the
    exits, *off the crowd's routes*, and their throughput is 6 bays × 40 vehicles an hour.
-8. **Diversions** are computed after all closures, between open junctions on the connected road network.
-9. **Emergency access.** Hospitals are ranked by a transparent suitability guess (`emergency=yes`, medical
+9. **Diversions** are computed after all closures, between open junctions on the connected road network.
+10. **Emergency access.** Hospitals are ranked by a transparent suitability guess (`emergency=yes`, medical
    college or district hospital, government; eye, dental and maternity hospitals rank last), then by drive
    time with event traffic. The ambulance route runs from the best reachable hospital to the gate the crowd
    uses least (preferably an emergency gate), with crowded streets penalised.
-10. **Placement** uses rules of thumb that are stated in the plan:
+11. **Placement** uses rules of thumb that are stated in the plan:
     - Stewards: one per 40 people/min at each gate's peak, at least 2.
     - Police: at gates (events ≥2,000), at E/F choke points, and at busy stations.
     - Traffic police: at conflict junctions, at both ends of each closure, and at pick-up points and car parks.
