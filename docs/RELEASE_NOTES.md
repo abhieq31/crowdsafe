@@ -22,8 +22,14 @@ gathering, from a temple committee to a national disaster authority, stop crowd 
   and tap across gates. Areas and widths are measured for you.
 - **One-question planning**: the web app opens on *Plan an event* and gives a single verdict and fixes,
   using the new `roomtobreathe.assess` engine (`rtb assess venue.json --people N`, `POST /api/assess`).
+- **Find the right place**: when many places share a name (there are many "Ramlila Maidan"s), the search
+  lists every match with its area and state. It also tries spelling variants (*Maidan*, *Ground*, *Field*)
+  and accepts a pasted Google Maps or OpenStreetMap link, or plain coordinates.
 - Fixed: playbook actions in one simulation leaked into the next one, so an evacuation could start with
   nobody inside.
+- Fixed: pressing Enter in the Permit check reloaded the page and cleared every answer.
+- Fixed: a returning visitor's browser could keep using an old cached copy of the engine. It is now
+  fingerprinted, so each release loads fresh.
 
 ### Install
 ```bash
