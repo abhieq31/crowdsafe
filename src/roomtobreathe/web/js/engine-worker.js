@@ -9,9 +9,11 @@ async function start() {
   importScripts(PYODIDE + "pyodide.js");
   const py = await loadPyodide({ indexURL: PYODIDE });
   await py.loadPackage("micropip");
-  const manifest = await (await fetch(new URL("../py/wheel.json", self.location.href))).json();
+  const manifest = await (await fetch(new URL("../py/wheel.json", self.location.href), { cache: "no-cache" })).json();
   postMessage({ status: "Loading the Room to Breathe engine…" });
-  await py.pyimport("micropip").install(new URL("../py/" + manifest.wheel, self.location.href).href, { deps: false });
+  const wheel = new URL("../py/" + manifest.wheel, self.location.href);
+  if (manifest.sha256) wheel.searchParams.set("v", manifest.sha256); // a new engine never comes from cache
+  await py.pyimport("micropip").install(wheel.href, { deps: false });
   py.runPython("import json\nfrom roomtobreathe.whatif import describe, run_whatif\nfrom roomtobreathe.assess import assess_event");
   return py;
 }
