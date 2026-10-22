@@ -210,6 +210,55 @@ def cmd_assess(a) -> int:
     return {"pass": 0, "warn": 0, "fail": 1}[r["verdict"]]
 
 
+def cmd_overview(a) -> int:
+    from .surroundings import event_overview, load_or_fetch, parse_modes, render_html
+
+    try:
+        venue = json.loads(open(a.venue, encoding="utf-8").read())
+    except (OSError, ValueError) as e:
+        print(f"Cannot read {a.venue}: {e}", file=sys.stderr)
+        return 1
+    if not venue.get("origin"):
+        print("The venue file has no location ('origin'). Draw the venue on the map in the web app "
+              "(Plan an event → Find it on the map) and save it.", file=sys.stderr)
+        return 1
+    try:
+        if a.osm:
+            osm = json.loads(open(a.osm, encoding="utf-8").read())
+        else:
+            print("Downloading streets, stations and hospitals from OpenStreetMap (cached for 30 days; "
+                  "the first time can take a few minutes)…", file=sys.stderr)
+            osm = load_or_fetch(venue["origin"][0], venue["origin"][1], a.radius, refresh=a.refresh)
+        r = event_overview(venue, a.people, osm, modes=parse_modes(a.modes) if a.modes else None,
+                           arrival_minutes=a.arrival_minutes, event_end_min=a.end_min,
+                           departure_minutes=a.departure_minutes, public_level=a.public_level, radius_m=a.radius)
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"Cannot build the overview: {e}", file=sys.stderr)
+        return 1
+    if a.html:
+        open(a.html, "w", encoding="utf-8").write(render_html(r))
+    if a.json:
+        print(json.dumps(r, indent=2, ensure_ascii=False))
+        return 0
+    mark = {"pass": "OK  ", "warn": "WARN", "fail": "FAIL"}
+    print(f"{r['venue']}, {r['attendance']:,} people: {r['headline'].upper()}\n")
+    for ch in r["checks"]:
+        print(f"  [{mark[ch['level']]}] {ch['title']}\n         {ch['detail']}")
+    print("\nStaff:")
+    for t in r["totals"]:
+        print(f"  {t['agency']:<20} {t['role']:<16} {t['count']:>5} at {t['posts']} post(s)")
+    if r["traffic"]["closures"]:
+        print("\nClose to traffic:")
+        for cl in r["traffic"]["closures"]:
+            via = ", ".join(cl["diversion_via"][:4]) or "local access only"
+            print(f"  {cl['street']} ({cl['length_m']:,} m), diversion via {via}")
+    for n in r["notes"]:
+        print(f"\nNote: {n}")
+    if a.html:
+        print(f"\nPrintable plan with map: {a.html}")
+    return {"pass": 0, "warn": 0, "fail": 1}[r["verdict"]]
+
+
 def cmd_whatif(a) -> int:
     from .venue import default_venue
     from .whatif import describe, run_whatif
@@ -330,6 +379,23 @@ def main(argv=None) -> int:
     asx.add_argument("--arrival-minutes", type=float, default=60.0, help="over how many minutes they arrive")
     asx.add_argument("--json", action="store_true")
 
+    ov = sub.add_parser("overview", help="the venue and its surroundings: crowd routes, traffic, hospitals, "
+                                         "and where to place police, traffic police and medical teams")
+    ov.add_argument("venue", help="venue JSON drawn on the map (it must have an 'origin')")
+    ov.add_argument("--people", type=int, required=True, help="people expected")
+    ov.add_argument("--modes", help="how people travel, e.g. 'metro=30,bus=25,car=15,walk=30' "
+                                    "(modes: metro, rail, tram, ferry, bus, car, walk)")
+    ov.add_argument("--arrival-minutes", type=float, help="over how many minutes they arrive (default: by crowd size)")
+    ov.add_argument("--end-min", type=float, help="minute (after gates open) when the event ends")
+    ov.add_argument("--departure-minutes", type=float, help="over how many minutes they leave (default: by crowd size)")
+    ov.add_argument("--public-level", type=float, default=1.0,
+                    help="normal pedestrians already on the streets: 0.5 quiet, 1 city evening, 2 market area")
+    ov.add_argument("--radius", type=float, default=1500, help="metres of streets around the venue to model")
+    ov.add_argument("--osm", help="use this saved OpenStreetMap JSON instead of downloading")
+    ov.add_argument("--refresh", action="store_true", help="download fresh map data even if cached")
+    ov.add_argument("--html", help="write the printable plan with a map to this file")
+    ov.add_argument("--json", action="store_true")
+
     wi = sub.add_parser("whatif", help="what if N people come, a surge starts, a gate blocks, or all must leave")
     wi.add_argument("venue", nargs="?", help="venue JSON (default: the demo venue)")
     wi.add_argument("--attendance", type=int, required=True, help="people arriving")
@@ -369,6 +435,8 @@ def main(argv=None) -> int:
         return cmd_venue(a)
     if a.cmd == "whatif":
         return cmd_whatif(a)
+    if a.cmd == "overview":
+        return cmd_overview(a)
     if a.cmd == "assess":
         return cmd_assess(a)
     if a.cmd == "setup":

@@ -1,5 +1,6 @@
 import { computeCapacity, assessRisk } from "./planning.js";
 import { initPhoto } from "./photo.js";
+import { initOverview } from "./overview.js";
 import { initWhatIf } from "./whatif.js";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -88,9 +89,11 @@ async function boot() {
     $('.tabs [data-tab="live"]').hidden = true; // live monitoring needs the venue's own computer
     if (firstVisit || store.get("tab", "") === "live") showTab("whatif");
     initWhatIf({ online: false });
+    initOverview();
     return;
   }
   initWhatIf({ online: true });
+  initOverview();
   $("#venue-name").textContent = venue.name;
   const health = await api("/api/health").catch(() => ({}));
   if (health.auth_required && !auth.token) $("#who").classList.add("primary");

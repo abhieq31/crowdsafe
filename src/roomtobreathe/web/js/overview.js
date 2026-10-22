@@ -1,0 +1,251 @@
+// "The area around the venue": crowd routes, traffic, emergency access and where to place every team.
+// The computation is the Python engine (roomtobreathe.surroundings), on the control-room server or in this
+// browser (Pyodide). Map data comes from OpenStreetMap's free Overpass servers and is cached in the browser.
+import { loadLibs } from "./venuemap.js";
+import { inBrowserEngine, usingServer, venueForChecks } from "./whatif.js";
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const MIRRORS = [ // same list as roomtobreathe/surroundings/osm.py
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
+const ICON = { pass: "✓", warn: "!", fail: "✕" };
+const ROLE_ICON = { "Police": "👮", "Traffic police": "🚦", "Steward": "🦺", "First-aid post": "⛑️", "Ambulance": "🚑",
+  "Station staff": "🚉", "Fire tender": "🚒" };
+const AGENCIES = ["Police", "Traffic police", "Health", "Organisers", "Transport operator", "Fire service"];
+const LOS = { A: "#2f9e5b", B: "#2f9e5b", C: "#d7a300", D: "#e36b0a", E: "#d42a2a", F: "#8b0000" };
+const RADIUS_M = 1500;
+let last = null, map = null, groups = null;
+
+const status = (t) => { $("#ov-status").textContent = t; };
+
+async function sha1(text) {
+  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Streets change slowly, so a copy is kept in this browser for 30 days (Cache API; falls back to no cache).
+async function fetchOsm(query) {
+  const key = `https://rtb.local/osm/${await sha1(query)}`;
+  let cache = null;
+  try { cache = await caches.open("rtb-osm-v1"); } catch { /* private mode or http */ }
+  if (cache) {
+    const hit = await cache.match(key).catch(() => null);
+    if (hit && Date.now() - Number(hit.headers.get("x-saved") || 0) < 30 * 864e5) return hit.text();
+  }
+  const errors = [];
+  for (const url of MIRRORS) {
+    status(`Downloading streets, stations and hospitals from OpenStreetMap (${new URL(url).host}). The free map servers can take a minute or two…`);
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 150_000);
+    try {
+      const r = await fetch(url, { method: "POST", body: new URLSearchParams({ data: query }), signal: ctl.signal });
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      const text = await r.text();
+      if (!text.trimStart().startsWith("{") || !text.includes('"elements"')) throw new Error("not map data");
+      if (cache) await cache.put(key, new Response(text, { headers: { "x-saved": String(Date.now()) } })).catch(() => {});
+      return text;
+    } catch (e) {
+      errors.push(`${new URL(url).host}: ${e.name === "AbortError" ? "timed out" : e.message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("the OpenStreetMap servers did not answer (" + errors.join("; ") + "). Try again in a few minutes.");
+}
+
+function readParams() {
+  const f = new FormData($("#ov-form"));
+  const a = new FormData($("#as-form"));
+  const modes = {};
+  for (const k of ["metro", "rail", "bus", "ferry", "car", "walk"]) {
+    const v = Number(f.get(k));
+    if (v > 0) modes[k] = v;
+  }
+  const arrival = Number(a.get("arrival_minutes")) || null;
+  return {
+    attendance: Number(a.get("attendance")), modes, arrival_minutes: arrival,
+    event_end_min: (arrival || 60) + Number(f.get("duration") || 120),
+    public_level: Number(f.get("public_level") || 1), radius_m: RADIUS_M,
+  };
+}
+
+async function run(e) {
+  e.preventDefault();
+  const { venue, problems } = venueForChecks();
+  if (problems.length || !venue) { status(problems[0] || "First tell us where the event is (step 1)."); return; }
+  if (!venue.origin) { status("Draw the venue on the map in step 1 (Find it on the map): the surroundings need its location."); return; }
+  const p = readParams();
+  if (!(p.attendance > 0)) { status("Type how many people you expect (step 2)."); return; }
+  if (!Object.keys(p.modes).length) { status("Say how people travel: at least one share above 0."); return; }
+  $("#ov-run").disabled = true;
+  const t0 = performance.now();
+  try {
+    let r;
+    if (usingServer()) {
+      status("Downloading the streets and planning on the control-room server (the first time can take a few minutes)…");
+      const resp = await fetch("api/overview", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ venue, attendance: p.attendance, options: p }) });
+      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || resp.statusText);
+      r = await resp.json();
+    } else {
+      status("Starting the engine in your browser…");
+      const query = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_query", {}, "#ov-status");
+      const osm = await fetchOsm(query);
+      r = await inBrowserEngine(venue, p, "overview", { osm }, "#ov-status");
+    }
+    last = r;
+    await render(r);
+    status(`Planned in ${((performance.now() - t0) / 1000).toFixed(0)} s. ${r.data.streets.toLocaleString()} streets and ${r.data.places} places from OpenStreetMap.`);
+    $("#ov-out").scrollIntoView({ block: "start" });
+  } catch (err) {
+    status(`Could not plan the surroundings: ${err.message}`);
+  } finally {
+    $("#ov-run").disabled = false;
+  }
+}
+
+function timeline(t) {
+  const end = t.event_end_min, gone = end + t.departure_minutes, total = gone + 15;
+  const X = (m) => `${(100 * (m + 30)) / (total + 30)}%`;
+  const seg = (a, b, cls, label) => `<div class="tl-seg ${cls}" style="left:${X(a)};width:calc(${X(b)} - ${X(a)})" title="${esc(label)}">${esc(label)}</div>`;
+  return `<div class="timeline" role="img" aria-label="Event timeline">
+    ${seg(-30, 0, "tl-prep", "Teams in place")}${seg(0, t.arrival_minutes, "tl-arr", "Arrival")}
+    ${seg(t.arrival_minutes, end, "tl-event", "Event")}${seg(end, gone, "tl-dep", "Departure")}</div>
+    <div class="small muted">Gates open at minute 0 · arrivals over ${t.arrival_minutes} min · event ends at minute ${end} ·
+      the crowd leaves over ${t.departure_minutes} min (set from the crowd size; change it from experience at this venue).</div>`;
+}
+
+const table = (head, rows) => `<div class="scroll"><table class="wi-table"><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("") || `<tr><td colspan="${head.length}">None.</td></tr>`}</tbody></table></div>`;
+const pct = (v) => `${Math.round(v * 100)}%`;
+
+async function render(r) {
+  const out = $("#ov-out");
+  const checks = r.checks.map((c) => `<li class="c-${c.level}"><span class="c-icon" aria-hidden="true">${ICON[c.level]}</span>
+    <div><b>${esc(c.title)}</b><div class="small">${esc(c.detail)}</div></div></li>`).join("");
+  const totals = table(["Agency", "Role", "Staff", "Posts"], r.totals.map((t) => `<tr><td>${esc(t.agency)}</td><td>${ROLE_ICON[t.role] || ""} ${esc(t.role)}</td><td class="num">${t.count.toLocaleString()}</td><td class="num">${t.posts}</td></tr>`));
+  const byAgency = {};
+  r.deployments.forEach((d, i) => (byAgency[d.agency] ??= []).push({ ...d, i }));
+  const agencies = Object.keys(byAgency).sort((a, b) => AGENCIES.indexOf(a) - AGENCIES.indexOf(b));
+  const plan = agencies.map((ag, k) => `<details class="agency"${k === 0 ? " open" : ""}><summary><b>${esc(ag)}</b> <span class="small muted">${byAgency[ag].length} post(s), ${byAgency[ag].reduce((s, d) => s + d.count, 0)} staff</span></summary>
+    <ol class="posts">${byAgency[ag].map((d) => `<li><button type="button" class="link" data-post="${d.i}">${ROLE_ICON[d.role] || ""} <b>${esc(d.role)} × ${d.count}</b> · ${esc(d.place)}</button>
+      <div class="small">${esc(d.why)}</div><div class="small muted">${esc(d.when)}</div></li>`).join("")}</ol></details>`).join("");
+  const closures = table(["Close to traffic", "When", "Diversion via", "Extra"], r.traffic.closures.map((c) => `<tr><td>${esc(c.street)} <span class="small muted">${c.length_m.toLocaleString()} m</span></td><td class="small">${esc(c.when)}</td><td>${esc(c.diversion_via.join(", ") || "local access only")}</td><td class="num">${c.diversion_extra_m === null ? "" : `${c.diversion_extra_m.toLocaleString()} m`}</td></tr>`));
+  const chokes = table(["Street", "When", "Level", "Load", "Footpath", "Fix"], r.choke_points.slice(0, 12).map((s) => `<tr><td>${esc(s.street)}</td><td>${esc(s.phase)}</td><td style="color:${LOS[s.los]}"><b>${s.los}</b></td><td class="num">${pct(s.load)}</td><td class="num">${s.walk_width_m} m${s.width_estimated ? "*" : ""}</td><td class="small">${esc((s.fixes || [])[0] || "")}</td></tr>`));
+  const transit = table(["Place", "Mode", "When", "People", "Busiest 15 min"], r.transit.slice(0, 12).map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(t.mode)}</td><td>${esc(t.phase)}</td><td class="num">${t.people.toLocaleString()}</td><td class="num">${t.peak_15min.toLocaleString()}</td></tr>`));
+  const em = r.emergency, cor = em.corridor;
+  const hosp = em.hospitals.map((h) => `<li>🏥 <b>${esc(h.name)}</b>: ${h.drive_min} min by road with event traffic <span class="small muted">(${esc(h.suitability)})</span></li>`).join("")
+    || "<li>No hospital found on the map: agree receiving hospitals with the health department.</li>";
+  const corTxt = cor.found ? `<p>🚑 <b>Ambulance route</b> from ${esc(cor.hospital)} to ${esc(cor.gate)}: ${cor.length_m.toLocaleString()} m, about ${cor.drive_min} min, via ${esc(cor.via.join(", ") || "local streets")}.
+    ${cor.shared_with_crowd.length ? `Keep one lane coned off where it meets the crowd: ${esc(cor.shared_with_crowd.map((s) => `${s.street} (${s.length_m} m)`).join(", "))}.` : "It avoids the departing crowd."}</p>` : "";
+  const layerBoxes = [["crowd_departure", "Crowd leaving", true], ["crowd_arrival", "Crowd arriving", false], ["roads", "Closures and diversions", true],
+    ["emergency", "Ambulance route and hospitals", true], ...AGENCIES.map((a) => [`ag:${a}`, a, true]), ["transit", "Stations and pick-up points", true]]
+    .map(([k, l, on]) => `<label class="small"><input type="checkbox" data-layer="${esc(k)}"${on ? " checked" : ""}> ${esc(l)}</label>`).join("");
+  out.innerHTML = `
+    <div class="verdict-big v-${r.verdict}"><span class="v-icon" aria-hidden="true">${ICON[r.verdict]}</span>
+      <div><div class="v-head">${esc(r.headline)}</div><div class="v-sub">${esc(r.venue)} · ${r.attendance.toLocaleString()} people ·
+        travel: ${esc(Object.entries(r.modes).map(([k, v]) => `${k} ${pct(v)}`).join(", "))}</div></div></div>
+    <ul class="checks">${checks}</ul>
+    ${timeline(r.times)}
+    <div class="ov-layers">${layerBoxes}</div>
+    <div id="ov-map" class="wi-map ov-map" aria-label="Map of crowd routes, closures, ambulance route and teams"></div>
+    <div class="legend small"><span><i style="background:#2f9e5b"></i>comfortable</span><span><i style="background:#d7a300"></i>busy</span>
+      <span><i style="background:#e36b0a"></i>crowded</span><span><i style="background:#d42a2a"></i>overflowing</span>
+      <span><i style="background:#111"></i>closed to traffic</span><span><i style="background:#7a3fd1"></i>diversion</span><span><i style="background:#0a84ff"></i>ambulance route</span></div>
+    <h3>Who goes where</h3>${totals}${plan}
+    <h3>Road closures and diversions</h3>${closures}
+    <h3>Emergency access</h3><ul class="plain">${hosp}</ul>${corTxt}
+    <h3>Busiest streets outside the venue</h3>${chokes}<p class="small muted">* footpath width estimated from the street type: check it on the ground.</p>
+    <h3>Stations and stops</h3>${transit}
+    <details class="more"><summary>Assumptions and data</summary><ul class="small">${[...r.notes, ...r.rules_of_thumb].map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+      <p class="small muted">Map data © OpenStreetMap contributors (ODbL). Footfall, travel shares and staffing ratios are planning
+        assumptions: the police, traffic, health and the organisers must check this plan on the ground and adapt it.</p></details>
+    <div class="btns"><button type="button" class="primary" id="ov-print">Open the printable plan</button>
+      <button type="button" id="ov-geojson">Download the map data (GeoJSON)</button></div>`;
+  out.hidden = false;
+  await drawMap(r);
+  out.querySelector(".ov-layers").addEventListener("change", (e) => toggle(e.target.dataset.layer, e.target.checked));
+  out.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-post]");
+    if (b && map) {
+      const d = r.deployments[Number(b.dataset.post)];
+      map.setView(d.lat_lon, 18);
+      $("#ov-map").scrollIntoView({ block: "center" });
+    }
+  });
+  $("#ov-print").addEventListener("click", printable);
+  $("#ov-geojson").addEventListener("click", () => download(JSON.stringify(r.geojson), "event-overview.geojson", "application/geo+json"));
+}
+
+async function drawMap(r) {
+  const L = await loadLibs();
+  if (map) { map.remove(); map = null; }
+  map = L.map("ov-map");
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(map);
+  groups = {};
+  const group = (k) => (groups[k] ??= L.layerGroup().addTo(map));
+  for (const f of r.geojson.features) {
+    const p = f.properties;
+    let k = p.layer;
+    if (k === "closure" || k === "diversion") k = "roads";
+    if (k === "ambulance_route" || k === "hospital") k = "emergency";
+    if (k === "pickup") k = "transit";
+    if (k === "deployment") k = `ag:${p.agency}`;
+    const layer = L.geoJSON(f, {
+      style: () => p.layer.startsWith("crowd") ? { color: LOS[p.los] || "#888", weight: p.los > "C" ? 6 : 3, opacity: 0.85 }
+        : p.layer === "closure" ? { color: "#111", weight: 6, dashArray: "8 6" }
+        : p.layer === "diversion" ? { color: "#7a3fd1", weight: 3, dashArray: "2 6" }
+        : p.layer === "ambulance_route" ? { color: "#0a84ff", weight: 5 }
+        : p.layer === "venue" ? { color: "#2456d6", weight: 2, fillOpacity: 0.12 } : {},
+      pointToLayer: (_, ll) => L.marker(ll, { icon: L.divIcon({ className: "ov-pin", iconSize: [24, 24],
+        html: `<span>${p.layer === "deployment" ? (ROLE_ICON[p.role] || "•") : p.layer === "hospital" ? "🏥" : p.layer === "pickup" ? "🚕" : "🚇"}</span>` }) }),
+    });
+    const pop = p.layer === "deployment" ? `<b>${esc(p.role)} × ${p.count}</b><br>${esc(p.place)}<br>${esc(p.why)}<br><i>${esc(p.when)}</i>`
+      : p.layer === "hospital" ? `<b>${esc(p.name)}</b><br>${p.drive_min} min by road`
+      : p.layer === "transit" ? `<b>${esc(p.name)}</b><br>${p.people.toLocaleString()} people (${esc(p.phase)}), ${p.peak_15min.toLocaleString()} in the busiest 15 min`
+      : esc(p.street || p.name || p.hospital || "");
+    if (pop) layer.bindPopup(pop);
+    layer.addTo(group(k));
+  }
+  toggle("crowd_arrival", false);
+  const near = L.featureGroup(Object.entries(groups).filter(([k]) => k === "venue" || k.startsWith("ag:")).flatMap(([, g]) => g.getLayers()));
+  try { map.fitBounds(near.getBounds(), { padding: [20, 20] }); } catch { map.setView(r.deployments[0]?.lat_lon || [0, 0], 15); }
+}
+
+function toggle(k, on) {
+  const g = groups?.[k];
+  if (!g || !map) return;
+  if (on) g.addTo(map); else map.removeLayer(g);
+}
+
+function download(text, name, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function printable() {
+  if (!last) return;
+  try {
+    let html;
+    if (usingServer()) {
+      const r = await fetch("api/overview/html", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(last) });
+      if (!r.ok) throw new Error(r.statusText);
+      html = await r.text();
+    } else {
+      html = await inBrowserEngine(null, last, "overview_html", {}, "#ov-status");
+    }
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    if (!window.open(url, "_blank")) download(html, "event-plan.html", "text/html");
+  } catch (err) {
+    status(`Could not make the printable plan: ${err.message}`);
+  }
+}
+
+export function initOverview() {
+  $("#ov-form")?.addEventListener("submit", run);
+}

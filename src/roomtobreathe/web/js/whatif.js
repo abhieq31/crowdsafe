@@ -93,6 +93,7 @@ function draftToVenue() {
     const d = { id: `G${i + 1}`, name: g.name || `Gate ${i + 1}`, from: ref(g.from), to: ref(g.to), width_m: Number(g.width) || 0 };
     if (g.stairs) d.stairs = true;
     if (g.closed) d.open = false;
+    if (draft.origin && g.ll?.length >= 2) d.line = [g.ll[0], g.ll[g.ll.length - 1]].map((p) => round2(toLocal(draft.origin, p)));
     return d;
   });
   if (!zones.length) problems.push("Add at least one zone.");
@@ -156,6 +157,18 @@ function engineWorker() {
   }
   return worker;
 }
+// The browser engine (Pyodide worker); also used by overview.js. ``extra`` rides along to the worker.
+export function inBrowserEngine(venue, params, kind, extra = {}, status = null) {
+  if (pending) return Promise.reject(new Error("the engine is busy with another calculation"));
+  if (status) statusEl = status;
+  return new Promise((resolve, reject) => {
+    pending = { resolve, reject };
+    engineWorker().postMessage({ kind, venue, params, ...extra });
+  });
+}
+export const usingServer = () => useServer;
+export const venueForChecks = () => currentVenue();
+
 async function runEngine(venue, params, kind = "whatif") {
   if (useServer) {
     const body = kind === "assess" ? { venue, ...params } : { venue, params };

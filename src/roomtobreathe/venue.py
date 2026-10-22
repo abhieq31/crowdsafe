@@ -60,6 +60,7 @@ class Gate:
     stairs: bool = False
     bidirectional: bool = True
     open: bool = True
+    line: List[Point] = field(default_factory=list)  # where it is: two points in local metres (map-drawn venues)
 
     @property
     def capacity_pps(self) -> float:
@@ -122,6 +123,7 @@ class Venue:
                 stairs=bool(g.get("stairs", False)),
                 bidirectional=bool(g.get("bidirectional", True)),
                 open=bool(g.get("open", True)),
+                line=[tuple(p) for p in g.get("line", [])],
             )
         for g in gates.values():
             for zid in (g.from_zone, g.to_zone):
@@ -177,6 +179,7 @@ class Venue:
                     "bidirectional": g.bidirectional,
                     "open": g.open,
                     "capacity_pps": round(g.capacity_pps, 3),
+                    **({"line": [list(p) for p in g.line]} if g.line else {}),
                 }
                 for g in self.gates.values()
             ],

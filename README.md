@@ -30,6 +30,17 @@ change. It runs the checks a crowd-safety expert would: capacity with the larges
 people arrive, a sudden surge (with and without the response plan), and a full evacuation. The engine is the
 same one the live control room uses, running inside your browser.
 
+**3. The area around the venue** then plans the surroundings as well as the venue itself. Using free
+OpenStreetMap data, it routes the crowd and its traffic through the real streets, stations and stops, both
+arriving and leaving. It finds the outside choke points, which roads to close (each with a diversion), and the
+junctions where crowd meets traffic. It names the receiving hospitals with drive times under event traffic,
+and plans an ambulance route that avoids the crowd. Then it says **where to place police, traffic police,
+first aid, ambulances, stewards and station staff, how many, when and why**, on one map with a printable plan
+for every agency. On the command line: `rtb overview venue.json --people 60000 --html plan.html`.
+How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
+
+<p align="center"><img src="https://raw.githubusercontent.com/abhieq31/roomtobreathe/main/docs/img/overview.jpg" alt="Event overview around Eden Gardens: crowd routes, road closures, diversions, and every team's post" width="760"></p>
+
 Also in the app: **Count a crowd** from a photo (people per m², the photo never leaves your device), a
 **Gate counter** for volunteers, and a **Permit check**. Planners can open *Try your own scenario* for
 surges, blocked gates and evacuations of their choosing. On the command line: `rtb assess venue.json --people 12000`.
