@@ -1,8 +1,31 @@
-**Room to Breathe 1.1** plans the streets around your venue, not just the venue. It is an open-source system
-that helps anyone who runs a gathering, from a temple committee to a national disaster authority, stop crowd
-crushes before they happen.
+## Introducing Room to Breathe 1.1: check if your event is safe from a crowd crush
 
-**Try it now, nothing to install:** https://abhieq31.github.io/roomtobreathe/
+**Open the app, nothing to install:** https://abhieq31.github.io/roomtobreathe/
+
+### Why this exists
+People in a crowd crush do not die from panic. They die because the crowd presses on their chests until they
+cannot breathe, often while standing still. And it keeps happening:
+
+- **3,074 people died in stampedes in India between 2001 and 2022**, and **147 more in 2024 alone**, by the
+  government's own count (NCRB, *Accidental Deaths and Suicides in India*; [Factly](https://factly.in/data-over-3000-lives-lost-in-stampedes-between-2001-2022/),
+  [Dataful](https://insights.dataful.in/articles/stampede-deaths-in-india-what-24-years-of-ncrb-data-reveals)).
+- **79% of India's stampedes happen at religious gatherings** (Illiyas et al., [*International Journal of
+  Disaster Risk Reduction*, 2013](https://www.sciencedirect.com/science/article/abs/pii/S2212420913000459)).
+- Worldwide, a review of **281 crowd disasters from 1900 to 2019** found them **becoming more frequent**,
+  with India and West Africa the hot spots, and **thousands killed in the last decade alone** (Feliciani et
+  al., [*Safety Science*, 2023](https://doi.org/10.1016/j.ssci.2023.106174)).
+
+The causes are physical: too many people for the space, too little exit width, a surge, and decisions that come
+too late. All of that can be measured before the event. So it can be prevented.
+
+### Try it in one minute
+1. **Where is your event?** Find it on the map, trace where people will stand, tap across each gate.
+   (Or press *Try an example*.)
+2. **How many people are coming?**
+3. Press **Check my event**: *Safe*, *Possible with precautions* or *Not safe*, the reasons, and what to change.
+
+It runs entirely in your browser. Nothing you draw or photograph is uploaded. No face recognition, no tracking
+of individuals. Free and open source (Apache-2.0).
 
 ### What it does
 - **Is my event safe?** Find the venue on a map, trace where people will stand, tap each gate and enter the
@@ -38,8 +61,10 @@ crushes before they happen.
   re-plan in seconds. Corrections are saved in the venue file.
 - **Works when map servers are busy.** Each part starts on a different public server, so none gets parallel
   requests (the main one refuses them), hedged across three; or plan from an exported `.osm` file (`--osm`).
-- **Easier on phones:** every tab is visible (the tab bar no longer hides tabs off-screen), disabled buttons
-  look disabled, and the gate counter no longer shows control-room options on the public site.
+- **Feels like an app on phones:** a bottom tab bar within thumb reach, the engine loads while you type so the
+  first check starts at once, a clear "Checking…" state, no zoom-in when a field is tapped, and it can be
+  added to the home screen. The engine is about 20% faster, with identical results.
+- **Plain error messages:** one sentence saying what went wrong and what to do, never a Python traceback.
 
 ### Install
 ```bash
