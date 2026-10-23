@@ -23,6 +23,7 @@ self.onmessage = async (e) => {
   try {
     ready = ready || start();
     const py = await ready;
+    if (e.data.kind === "warm") return; // loaded ahead of the first check; nothing to answer
     py.globals.set("venue_json", JSON.stringify(e.data.venue));
     py.globals.set("params_json", JSON.stringify(e.data.params));
     let out;

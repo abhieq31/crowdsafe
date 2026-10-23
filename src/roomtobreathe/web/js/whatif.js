@@ -148,7 +148,7 @@ function engineWorker() {
   if (!worker) {
     worker = new Worker(new URL("engine-worker.js", import.meta.url));
     worker.onmessage = (e) => {
-      if (e.data.status) { $(statusEl).textContent = e.data.status; return; }
+      if (e.data.status) { if (pending) $(statusEl).textContent = e.data.status; return; } // silent while warming
       const p = pending; pending = null;
       if (!p) return;
       e.data.error ? p.reject(new Error(e.data.error)) : p.resolve(e.data.result);
@@ -318,24 +318,29 @@ async function check(e) {
   // the expert form starts from the same numbers
   $('#wi-form [name="attendance"]').value = attendance;
   $('#wi-form [name="arrival_minutes"]').value = arrival_minutes;
-  $("#as-run").disabled = true;
+  const btn = $("#as-run"), label = btn.textContent;
+  btn.disabled = true; btn.classList.add("busy"); btn.textContent = "Checking…";
   statusEl = "#as-status";
-  const t0 = performance.now();
   status.textContent = useServer ? "Checking…" : "Checking in your browser. The first time takes a little longer…";
   try {
     const r = await runEngine(venue, { attendance, arrival_minutes }, "assess");
     renderVerdict(r, venue);
-    status.textContent = `Checked in ${((performance.now() - t0) / 1000).toFixed(0)} s.`;
-    $("#as-result").scrollIntoView({ block: "start" });
+    status.textContent = "";
+    $("#as-result").scrollIntoView({ block: "start", behavior: "smooth" });
   } catch (err) {
     status.textContent = `Could not check: ${err.message}`;
   } finally {
-    $("#as-run").disabled = false;
+    btn.disabled = false; btn.classList.remove("busy"); btn.textContent = label;
   }
 }
 
 export async function initWhatIf({ online }) {
   useServer = online;
+  // Load Python while the visitor reads and types, so the first check answers in seconds, not 25 s.
+  // Skipped when the phone asks to save data; then it loads on the first check as before.
+  if (!online && !navigator.connection?.saveData) {
+    (window.requestIdleCallback || setTimeout)(() => engineWorker().postMessage({ kind: "warm" }), { timeout: 1500 });
+  }
   if (online) serverVenue = await fetch("api/venue").then((r) => r.json()).catch(() => null);
   demoVenue = await fetch(new URL("../data/pandal.json", import.meta.url)).then((r) => r.json()).catch(() => null);
   if (serverVenue) {
