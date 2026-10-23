@@ -87,6 +87,8 @@ async function boot() {
     $("#who").style.display = "none"; // nothing to sign in to without a control-room server
     $("#conn").hidden = true;
     $('.tabs [data-tab="live"]').hidden = true; // live monitoring needs the venue's own computer
+    $("#cnt-zone-row").hidden = true; // no control room to report a count to
+    $("#cnt-sent").hidden = true;
     if (firstVisit || store.get("tab", "") === "live") showTab("whatif");
     initWhatIf({ online: false });
     initOverview();

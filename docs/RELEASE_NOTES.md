@@ -1,5 +1,6 @@
-**Room to Breathe 1.0** is the first public release of an open-source system that helps anyone who runs a
-gathering, from a temple committee to a national disaster authority, stop crowd crushes before they happen.
+**Room to Breathe 1.1** plans the streets around your venue, not just the venue. It is an open-source system
+that helps anyone who runs a gathering, from a temple committee to a national disaster authority, stop crowd
+crushes before they happen.
 
 **Try it now, nothing to install:** https://abhieq31.github.io/roomtobreathe/
 
@@ -13,23 +14,32 @@ gathering, from a temple committee to a national disaster authority, stop crowd 
   say why they fired and how many minutes are left before critical density. Each one comes with a
   pre-approved playbook (which gate to close or open, and what to announce in English, Hindi or Bengali)
   that a named operator approves.
+- **The area around the venue.** How the crowd gets there and home through the real streets, stations and
+  stops; which roads to close and the diversion for each; how ambulances get in; and **where to place police,
+  traffic police, first aid, ambulances, stewards and station staff, how many, when and why**, with a
+  briefing sheet for each agency.
 - **Count a crowd from a photo**, a **gate counter** for volunteers, and a **permit check**, all in the
   browser. Photos never leave the device.
 - **Open standards:** alerts export as CAP 1.2. Every action is recorded with who approved it.
 
-### New since v0.3.0
-- **Draw the venue on a map**: search anywhere in the world (OpenStreetMap, no account or key), trace zones,
-  and tap across gates. Areas and widths are measured for you.
-- **One-question planning**: the web app opens on *Plan an event* and gives a single verdict and fixes,
-  using the new `roomtobreathe.assess` engine (`rtb assess venue.json --people N`, `POST /api/assess`).
-- **Find the right place**: when many places share a name (there are many "Ramlila Maidan"s), the search
-  lists every match with its area and state. It also tries spelling variants (*Maidan*, *Ground*, *Field*)
-  and accepts a pasted Google Maps or OpenStreetMap link, or plain coordinates.
-- Fixed: playbook actions in one simulation leaked into the next one, so an evacuation could start with
-  nobody inside.
-- Fixed: pressing Enter in the Permit check reloaded the page and cleared every answer.
-- Fixed: a returning visitor's browser could keep using an old cached copy of the engine. It is now
-  fingerprinted, so each release loads fresh.
+### New since v1.0.0
+- **The area around the venue** (*Plan an event → step 3*, `rtb overview`, `POST /api/overview`). From free
+  OpenStreetMap data it routes arrival and departure to stations, stops, car parks and pick-up points, finds
+  the outside choke points (Fruin level of service), closes roads and re-checks them, gives a diversion for
+  every closure, names receiving hospitals with drive times under event traffic, and plans an ambulance route
+  that avoids the crowd. It ends with a deployment plan: every post with its role, staff, place, reason and
+  time. How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
+- **Staggered exit, checked automatically.** If streets still overflow after the closures, it works out how
+  long the departure must be spread over and adopts it when it helps. Around Eden Gardens for 60,000 people,
+  27 overflowing streets become 4 with a 3-wave release over 120 minutes.
+- **Briefing sheet per agency** (police, traffic police, health), each with only its own posts and facts,
+  and every post as CSV for rosters (`rtb overview --briefings DIR`).
+- **Correct the map.** Tap a street to set its real footpath width or mark it closed or blocked, then
+  re-plan in seconds. Corrections are saved in the venue file.
+- **Works when map servers are busy.** Downloads are hedged across four public servers, and you can plan
+  from an exported `.osm` file instead (`--osm`).
+- **Easier on phones:** every tab is visible (the tab bar no longer hides tabs off-screen), disabled buttons
+  look disabled, and the gate counter no longer shows control-room options on the public site.
 
 ### Install
 ```bash
