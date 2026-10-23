@@ -57,6 +57,9 @@ self.onmessage = async (e) => {
     postMessage({ result: JSON.parse(out) });
   } catch (err) {
     ready = null;
-    postMessage({ error: String(err && err.message ? err.message : err).split("\n").slice(-3).join(" ") });
+    // A Python traceback ends with "SomeError: what went wrong"; people need only what went wrong.
+    const lines = String(err && err.message ? err.message : err).trim().split("\n");
+    const lastLine = lines[lines.length - 1].trim();
+    postMessage({ error: lastLine.replace(/^[A-Za-z_.]*(Error|Exception): /, "") || lastLine });
   }
 };

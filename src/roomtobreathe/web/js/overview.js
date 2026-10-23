@@ -159,7 +159,8 @@ async function fetchOsm(queries) {
     return text;
   }));
   if (results[0].status === "rejected") {
-    throw new Error(`the map servers did not send the streets (${results[0].reason.message}). They are often busy: try again in a few minutes, or upload a map file.`);
+    console.warn("Overpass:", results[0].reason.message); // which server said what, for whoever debugs it
+    throw new Error("the free map servers are busy right now. Try again in a minute, or use a map file (below).");
   }
   return { parts: results.filter((r) => r.status === "fulfilled").map((r) => r.value),
     missing: results.map((r, i) => (r.status === "rejected" ? PART_NAMES[i] : null)).filter(Boolean) };
