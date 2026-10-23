@@ -41,7 +41,9 @@ def main(argv=None) -> int:
     py = out / "py"
     subprocess.run([sys.executable, "-m", "pip", "wheel", "--no-deps", "-q", "-w", str(py), str(ROOT)], check=True)
     [wheel] = [p.name for p in py.glob("roomtobreathe-*.whl")]
-    (py / "wheel.json").write_text(json.dumps({"wheel": wheel}) + "\n")
+    # The fingerprint changes whenever the engine does, so browsers never run a stale cached copy.
+    digest = model_store.sha256(py / wheel)[:12]
+    (py / "wheel.json").write_text(json.dumps({"wheel": wheel, "sha256": digest}) + "\n")
 
     if not a.no_model:
         info = model_store.MODELS["dense"]

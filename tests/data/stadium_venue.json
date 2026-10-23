@@ -1,0 +1,202 @@
+{
+ "id": "stadium-test",
+ "name": "Test stadium (Eden Gardens area, approximate outline)",
+ "origin": [
+  22.5646,
+  88.3433
+ ],
+ "zones": [
+  {
+   "id": "stands",
+   "name": "Stands and concourse",
+   "polygon": [
+    [
+     125.0,
+     0.0
+    ],
+    [
+     115.48,
+     47.84
+    ],
+    [
+     88.39,
+     88.39
+    ],
+    [
+     47.84,
+     115.48
+    ],
+    [
+     0.0,
+     125.0
+    ],
+    [
+     -47.84,
+     115.48
+    ],
+    [
+     -88.39,
+     88.39
+    ],
+    [
+     -115.48,
+     47.84
+    ],
+    [
+     -125.0,
+     0.0
+    ],
+    [
+     -115.48,
+     -47.84
+    ],
+    [
+     -88.39,
+     -88.39
+    ],
+    [
+     -47.84,
+     -115.48
+    ],
+    [
+     -0.0,
+     -125.0
+    ],
+    [
+     47.84,
+     -115.48
+    ],
+    [
+     88.39,
+     -88.39
+    ],
+    [
+     115.48,
+     -47.84
+    ]
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "id": "G1",
+   "name": "Gate 1 (east)",
+   "from": "stands",
+   "to": "outside",
+   "width_m": 6,
+   "line": [
+    [
+     125.0,
+     -3.0
+    ],
+    [
+     125.0,
+     3.0
+    ]
+   ]
+  },
+  {
+   "id": "G2",
+   "name": "Gate 3 (north)",
+   "from": "stands",
+   "to": "outside",
+   "width_m": 6,
+   "line": [
+    [
+     3.0,
+     125.0
+    ],
+    [
+     -3.0,
+     125.0
+    ]
+   ]
+  },
+  {
+   "id": "G3",
+   "name": "Gate 5 (west)",
+   "from": "stands",
+   "to": "outside",
+   "width_m": 6,
+   "line": [
+    [
+     -125.0,
+     3.0
+    ],
+    [
+     -125.0,
+     -3.0
+    ]
+   ]
+  },
+  {
+   "id": "G4",
+   "name": "Gate 7 (south, emergency)",
+   "from": "stands",
+   "to": "outside",
+   "width_m": 6,
+   "line": [
+    [
+     -3.0,
+     -125.0
+    ],
+    [
+     3.0,
+     -125.0
+    ]
+   ],
+   "open": false
+  },
+  {
+   "id": "G5",
+   "name": "Gate 2 (north-east)",
+   "from": "stands",
+   "to": "outside",
+   "width_m": 6,
+   "line": [
+    [
+     90.51,
+     86.27
+    ],
+    [
+     86.27,
+     90.51
+    ]
+   ]
+  },
+  {
+   "id": "G6",
+   "name": "Gate 6 (south-west)",
+   "from": "stands",
+   "to": "outside",
+   "width_m": 6,
+   "line": [
+    [
+     -90.51,
+     -86.27
+    ],
+    [
+     -86.27,
+     -90.51
+    ]
+   ]
+  },
+  {
+   "id": "G7",
+   "name": "Main entry (north-east)",
+   "from": "outside",
+   "to": "stands",
+   "width_m": 10,
+   "line": [
+    [
+     59.9,
+     109.75
+    ],
+    [
+     65.1,
+     106.75
+    ]
+   ]
+  }
+ ]
+}

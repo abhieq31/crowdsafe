@@ -45,3 +45,42 @@ export function gateSides(origin, lineLatLngs, zonesLatLngs, probesM = [2, 5, 10
   }
   return last;
 }
+
+// ------------------------------------------------------------------ finding the place
+// Coordinates or a map link pasted into the search box: "28.6420, 77.2299", a Google Maps link
+// (…/@28.642,77.2299,17z, …!3d28.642!4d77.2299, …?q=28.642,77.2299), or an OpenStreetMap link (#map=17/28.642/77.2299).
+export function parseLocation(text) {
+  const t = String(text).trim();
+  const ok = (lat, lon) => Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lat, lon] : null;
+  let m = t.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/); // a place's own pin in a Google Maps link
+  if (m) return ok(Number(m[1]), Number(m[2]));
+  m = t.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) || t.match(/[?&](?:q|ll|query|center)=(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i);
+  if (m) return ok(Number(m[1]), Number(m[2]));
+  m = t.match(/map=\d+\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);
+  if (m) return ok(Number(m[1]), Number(m[2]));
+  m = t.match(/^(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+  if (m) return ok(Number(m[1]), Number(m[2]));
+  return null;
+}
+
+// "Maidan", "ground" and "field" mean the same thing and are spelled differently on the map: the famous
+// Ramlila Maidan in Delhi is "Ramlila Grounds" in OpenStreetMap. Search again without them.
+const GENERIC = /\b(maidan|maidaan|grounds?|fields?|mela ground)\b/gi;
+export function queryVariants(q) {
+  const base = String(q).trim();
+  const core = base.replace(GENERIC, " ").replace(/\s+,/g, ",").replace(/\s{2,}/g, " ").replace(/^[\s,]+|[\s,]+$/g, "");
+  return core && core.toLowerCase() !== base.toLowerCase() ? [base, core] : [base];
+}
+
+// Merge results from several searches: one entry per place (within ~100 m), in the order found.
+export function mergePlaces(lists, max = 8) {
+  const out = [];
+  for (const list of lists) {
+    for (const p of list) {
+      if (out.some((o) => Math.abs(o.lat - p.lat) < 0.001 && Math.abs(o.lon - p.lon) < 0.001)) continue;
+      out.push(p);
+      if (out.length >= max) return out;
+    }
+  }
+  return out;
+}

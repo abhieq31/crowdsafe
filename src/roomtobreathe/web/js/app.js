@@ -1,5 +1,6 @@
 import { computeCapacity, assessRisk } from "./planning.js";
 import { initPhoto } from "./photo.js";
+import { initOverview } from "./overview.js";
 import { initWhatIf } from "./whatif.js";
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -90,9 +91,11 @@ async function boot() {
     $("#cnt-sent").hidden = true;
     if (firstVisit || store.get("tab", "") === "live") showTab("whatif");
     initWhatIf({ online: false });
+    initOverview();
     return;
   }
   initWhatIf({ online: true });
+  initOverview();
   $("#venue-name").textContent = venue.name;
   const health = await api("/api/health").catch(() => ({}));
   if (health.auth_required && !auth.token) $("#who").classList.add("primary");
@@ -466,6 +469,8 @@ function plan() {
     <ul class="factors">${risk.factors.map((x) => `<li><span class="pts">+${x.points}</span><b>${esc(x.finding)}</b><div class="rec">→ ${esc(x.recommendation)}</div></li>`).join("")}</ul>`;
 }
 $("#cap-form").addEventListener("input", plan);
+// These forms update as you type; Enter must not submit them (that reloads the page and loses the answers).
+for (const id of ["#cap-form", "#risk-form"]) $(id).addEventListener("submit", (e) => { e.preventDefault(); plan(); });
 $("#risk-form").addEventListener("input", plan);
 $("#risk-form").addEventListener("change", plan);
 $("#print-plan").onclick = () => window.print();
