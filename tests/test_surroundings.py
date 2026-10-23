@@ -335,7 +335,7 @@ def test_download_survives_a_missing_part(monkeypatch):
     full = town()
     streets = {"elements": [e for e in full["elements"] if e["id"] < 90000]}
 
-    def fake(query, timeout=0, mirrors=None, hedge_s=0):
+    def fake(query, timeout=0, mirrors=None, hedge_s=0, first=0):
         if "amenity" in query:
             raise RuntimeError("all servers busy")
         return streets
@@ -349,7 +349,7 @@ def test_download_survives_a_missing_part(monkeypatch):
 
 
 def test_download_needs_the_streets(monkeypatch):
-    def fake(query, timeout=0, mirrors=None, hedge_s=0):
+    def fake(query, timeout=0, mirrors=None, hedge_s=0, first=0):
         raise RuntimeError("down")
 
     monkeypatch.setattr(osm_mod, "fetch_part", fake)
@@ -374,6 +374,21 @@ def test_hedged_request_takes_the_first_good_answer(monkeypatch):
     monkeypatch.setattr(osm_mod, "_post", post)
     out = osm_mod.fetch_part("q", mirrors=["a", "b", "c"], hedge_s=0.05)
     assert out == {"elements": ["fast"]} and calls[:3] == ["a", "b", "c"]
+
+
+def test_parts_start_on_different_servers(monkeypatch):
+    # overpass-api.de refuses parallel requests (429); the three parts must not all start on one server.
+    firsts = []
+
+    def post(url, query, timeout):
+        firsts.append(url)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm_mod, "_post", post)
+    osm_mod.fetch_osm(*ORIGIN, 420)
+    assert sorted(firsts) == sorted(osm_mod.MIRRORS)
+    assert osm_mod.MIRRORS[-1] == "https://overpass-api.de/api/interpreter"
+    assert not any("kumi.systems" in m for m in osm_mod.MIRRORS)  # an old name of private.coffee
 
 
 # ------------------------------------------------------------------ corrections

@@ -18,12 +18,13 @@ import urllib.request
 from pathlib import Path
 from typing import List, Optional
 
-# Public Overpass servers, tried in order. The main one sometimes refuses or times out under load.
+# Public Overpass servers (wiki.openstreetmap.org/wiki/Overpass_API). The two that state no rate limit come
+# first; overpass-api.de is overloaded, asks for no parallel requests and answers 429 to them, so it is last.
+# (overpass.kumi.systems is an old name of private.coffee: listing both asked one server twice.)
 MIRRORS = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
 ]
 USER_AGENT = "roomtobreathe (crowd-safety planning; https://github.com/abhieq31/roomtobreathe)"
 
@@ -149,12 +150,14 @@ def _post(url: str, query: str, timeout: float) -> dict:
     return data
 
 
-def fetch_part(query: str, timeout: float = 150, mirrors: Optional[List[str]] = None, hedge_s: float = HEDGE_S) -> dict:
-    """One query, hedged across the mirrors: ask the first; if it has not answered in ``hedge_s`` seconds
+def fetch_part(query: str, timeout: float = 150, mirrors: Optional[List[str]] = None, hedge_s: float = HEDGE_S,
+               first: int = 0) -> dict:
+    """One query, hedged across the mirrors: ask mirror ``first``; if it has not answered in ``hedge_s`` seconds
     (or fails), ask the next as well; the first good answer wins. Public servers are often slow or down."""
     import concurrent.futures as cf
 
     mirrors = mirrors or MIRRORS
+    mirrors = mirrors[first % len(mirrors):] + mirrors[:first % len(mirrors)]
     errors: List[str] = []
     pool = cf.ThreadPoolExecutor(max_workers=len(mirrors))
     try:
@@ -190,7 +193,8 @@ def fetch_osm(
     queries = overpass_queries(lat, lon, radius_m)
     names = PART_NAMES
     with cf.ThreadPoolExecutor(max_workers=len(queries)) as pool:
-        futs = [pool.submit(fetch_part, q, timeout, mirrors) for q in queries]
+        # each part starts on a different server, so none of them gets parallel requests from us
+        futs = [pool.submit(fetch_part, q, timeout, mirrors, HEDGE_S, i) for i, q in enumerate(queries)]
         results, missing, errors = [], [], []
         for name, f in zip(names, futs):
             try:
