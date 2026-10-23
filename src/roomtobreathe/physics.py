@@ -15,6 +15,7 @@ References
 from __future__ import annotations
 
 import math
+import operator
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional, Sequence
@@ -157,10 +158,10 @@ def dominant_oscillation(series: Sequence[float], dt: float, min_period: float =
     # Remove the linear trend: a crowd that is steadily slowing down is not oscillating.
     ts = range(n)
     mt, mean = (n - 1) / 2.0, sum(series) / n
-    stt = sum((t - mt) ** 2 for t in ts)
-    slope = sum((t - mt) * (v - mean) for t, v in zip(ts, series)) / stt
+    stt = sum([(t - mt) ** 2 for t in ts])
+    slope = sum([(t - mt) * (v - mean) for t, v in zip(ts, series)]) / stt
     x = [v - mean - slope * (t - mt) for t, v in zip(ts, series)]
-    var = sum(v * v for v in x)
+    var = sum(map(operator.mul, x, x))
     if var <= 1e-12:
         return None
     lo = max(1, int(math.ceil(min_period / dt)))
@@ -168,8 +169,11 @@ def dominant_oscillation(series: Sequence[float], dt: float, min_period: float =
     best = None
     prev = None
     rising = False
+    mul = operator.mul
     for lag in range(lo, hi + 1):
-        r = sum(x[i] * x[i + lag] for i in range(n - lag)) / var
+        # The same products summed in the same order as a loop over i, without the per-item interpreter cost:
+        # this is the engine's hottest line, and it decides how long a check takes on a phone.
+        r = sum(map(mul, x, x[lag:])) / var
         r *= n / (n - lag)  # unbias for shorter overlap
         if prev is not None:
             if r < prev and rising and (best is None or prev > best[1]):

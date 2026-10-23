@@ -29,8 +29,9 @@ rtb overview my_venue.json --people 60000 \
 The venue must be drawn on the map (it needs a location, and gates need their positions). The first run
 downloads streets, stations and hospitals from OpenStreetMap's free Overpass servers. This can take 1-3
 minutes, and the data is then cached for 30 days. The download runs as three requests in parallel (streets,
-main roads further out, places), each **hedged** across four public servers: if one has not answered in 15 s,
-the next is asked as well. Only the streets are essential: if the places fail, the plan is made without
+main roads further out, places), each starting on a different one of three public servers (private.coffee and
+VK Maps, which state no rate limit, then the overloaded overpass-api.de) and **hedged**: if one has not answered
+in 15 s, the next is asked as well. Only the streets are essential: if the places fail, the plan is made without
 them and says so. Options: `--arrival-minutes`, `--end-min`, `--departure-minutes`, `--public-level` (0.5 quiet,
 1 city evening, 2 market area) and `--radius`. `--briefings DIR` writes one briefing sheet per agency plus `posts.csv`.
 

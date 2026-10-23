@@ -36,8 +36,8 @@ crushes before they happen.
   and every post as CSV for rosters (`rtb overview --briefings DIR`).
 - **Correct the map.** Tap a street to set its real footpath width or mark it closed or blocked, then
   re-plan in seconds. Corrections are saved in the venue file.
-- **Works when map servers are busy.** Downloads are hedged across four public servers, and you can plan
-  from an exported `.osm` file instead (`--osm`).
+- **Works when map servers are busy.** Each part starts on a different public server, so none gets parallel
+  requests (the main one refuses them), hedged across three; or plan from an exported `.osm` file (`--osm`).
 - **Easier on phones:** every tab is visible (the tab bar no longer hides tabs off-screen), disabled buttons
   look disabled, and the gate counter no longer shows control-room options on the public site.
 

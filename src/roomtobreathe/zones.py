@@ -121,10 +121,11 @@ class ZoneEstimator:
         ys = [p[1] for p in pts]
         n = len(xs)
         mx, my = sum(xs) / n, sum(ys) / n
-        sxx = sum((x - mx) ** 2 for x in xs)
+        dx = [x - mx for x in xs]  # list comprehensions, not generators: the same sums, runs every tick
+        sxx = sum([d ** 2 for d in dx])
         if sxx <= 1e-9:
             return None
-        return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+        return sum([d * (y - my) for d, y in zip(dx, ys)]) / sxx
 
     def snapshot(self, now: Optional[float] = None) -> ZoneState:
         now = time.time() if now is None else now

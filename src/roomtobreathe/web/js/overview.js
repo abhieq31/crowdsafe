@@ -6,10 +6,10 @@ import { inBrowserEngine, usingServer, venueForChecks } from "./whatif.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const MIRRORS = [ // same list as roomtobreathe/surroundings/osm.py
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
+const MIRRORS = [ // same list and order as roomtobreathe/surroundings/osm.py (why: see there)
   "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
 ];
 const ICON = { pass: "✓", warn: "!", fail: "✕" };
 const ROLE_ICON = { "Police": "👮", "Traffic police": "🚦", "Steward": "🦺", "First-aid post": "⛑️", "Ambulance": "🚑",
@@ -102,14 +102,15 @@ const PART_NAMES = ["streets", "main roads further out", "stations, stops, car p
 const HEDGE_MS = 15_000; // if a server has not answered in 15 s, also ask the next one
 
 // One query, hedged across the servers: the first good answer wins and the others are cancelled.
-function fetchPart(query, onTry) {
+function fetchPart(query, onTry, first = 0) {
   return new Promise((resolve, reject) => {
     const ctls = [], errors = [];
     let next = 0, done = false, timer = null;
+    const order = [...MIRRORS.slice(first % MIRRORS.length), ...MIRRORS.slice(0, first % MIRRORS.length)];
     const finish = (fn, v) => { if (done) return; done = true; clearTimeout(timer); ctls.forEach((c) => c.abort()); fn(v); };
     const launch = () => {
       if (done || next >= MIRRORS.length) return;
-      const url = MIRRORS[next++], ctl = new AbortController();
+      const url = order[next++], ctl = new AbortController();
       ctls.push(ctl);
       onTry?.(new URL(url).host);
       const t = setTimeout(() => ctl.abort(), 150_000);
@@ -153,12 +154,13 @@ async function fetchOsm(queries) {
   const show = () => status(`Downloading from OpenStreetMap's free servers: ${PART_NAMES.map((n, i) => `${n} ${state[i]}`).join(" · ")}. This can take a minute or two.`);
   show();
   const results = await Promise.allSettled(queries.map(async (q, i) => {
-    const text = await cached(`https://rtb.local/osm/${await sha1(q)}`, () => fetchPart(q, (host) => { state[i] = `(asking ${host})`; show(); }));
+    const text = await cached(`https://rtb.local/osm/${await sha1(q)}`, () => fetchPart(q, (host) => { state[i] = `(asking ${host})`; show(); }, i)); // each part starts on a different server
     state[i] = "✓"; show();
     return text;
   }));
   if (results[0].status === "rejected") {
-    throw new Error(`the map servers did not send the streets (${results[0].reason.message}). They are often busy: try again in a few minutes, or upload a map file.`);
+    console.warn("Overpass:", results[0].reason.message); // which server said what, for whoever debugs it
+    throw new Error("the free map servers are busy right now. Try again in a minute, or use a map file (below).");
   }
   return { parts: results.filter((r) => r.status === "fulfilled").map((r) => r.value),
     missing: results.map((r, i) => (r.status === "rejected" ? PART_NAMES[i] : null)).filter(Boolean) };

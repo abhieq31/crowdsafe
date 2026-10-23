@@ -305,3 +305,31 @@ ul.plain { list-style: none; padding: 0; display: flex; flex-direction: column; 
 .fix-form label { display: flex; flex-direction: column; gap: 2px; }
 .fix-form label:has(input[type=checkbox]) { flex-direction: row; align-items: center; gap: 6px; }
 .fix-form input[type=number] { width: 100%; }
+
+/* ---- phones: feel like an app ---------------------------------------------------------------- */
+button.busy, button.busy:disabled { opacity: 1; cursor: progress; }
+button.busy::before {
+  content: ""; display: inline-block; width: 1em; height: 1em; margin-right: .5em; vertical-align: -.15em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { button.busy::before { animation: none; } }
+@media (max-width: 600px) {
+  /* 16px stops iPhone Safari from zooming the page when a field is tapped */
+  input, select, textarea { font-size: 16px; }
+  button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  /* the brand scrolls away; the sections sit in a bar at the bottom, where a thumb reaches */
+  .topbar { position: static; padding: 10px 16px; }
+  .tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1100; flex-wrap: nowrap; gap: 0; margin: 0; /* above map controls (1000) */
+    background: var(--panel); border-top: 1px solid var(--line);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .tabs button {
+    flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.15; font-size: 12.5px;
+    padding: 9px 2px; min-height: 48px; border-radius: 10px;
+  }
+  .tabs button[aria-selected="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+@media print { .tabs { display: none !important; } body { padding-bottom: 0; } }

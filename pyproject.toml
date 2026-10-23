@@ -44,7 +44,7 @@ Changelog = "https://github.com/abhieq31/roomtobreathe/releases"
 where = ["src"]
 
 [tool.setuptools.package-data]
-roomtobreathe = ["data/*.json", "data/venues/*.json", "web/*", "web/js/*"]
+roomtobreathe = ["data/*.json", "data/venues/*.json", "web/*", "web/js/*", "web/icons/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
