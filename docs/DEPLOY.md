@@ -81,7 +81,7 @@ counts feed the same alerts.
 
 ## 3. Before the event (one week ahead)
 
-**Start in the [web app](https://abhieq31.github.io/roomtobreathe/)** (nothing to install): in *Plan an event*, find
+**Start in the [web app](https://abhipatelz.github.io/roomtobreathe/)** (nothing to install): in *Plan an event*, find
 the venue on the map, trace it, enter the crowd you expect and press *Check my event*. Fix what it reports, then
 press *Save this venue* to get the venue file for the control room. The steps below do the same on the
 command line (`roomtobreathe assess my_venue.json --people 12000`).
@@ -120,7 +120,7 @@ those counts.
 ```bash
 mkdir data && cp my_venue.json data/venue.json
 export RTB_TOKEN='choose-a-long-access-code'
-docker compose up -d                       # uses ghcr.io/abhieq31/roomtobreathe
+docker compose up -d                       # uses ghcr.io/abhipatelz/roomtobreathe
 ```
 
 **Option B, plain Python:**
@@ -144,7 +144,7 @@ roomtobreathe check        # must end with READY
 Or with Docker (the model is already inside, so no internet is needed at the venue):
 
 ```bash
-docker run --rm -v $PWD/cam1.json:/cam.json ghcr.io/abhieq31/roomtobreathe-edge \
+docker run --rm -v $PWD/cam1.json:/cam.json ghcr.io/abhipatelz/roomtobreathe-edge \
   check --source rtsp://user:pass@CAMERA-IP/stream --calibration /cam.json \
         --server http://192.168.1.20:8000 --token "$RTB_TOKEN"
 ```

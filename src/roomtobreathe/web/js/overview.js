@@ -18,6 +18,7 @@ const AGENCIES = ["Police", "Traffic police", "Health", "Organisers", "Transport
 const LOS = { A: "#2f9e5b", B: "#2f9e5b", C: "#d7a300", D: "#e36b0a", E: "#d42a2a", F: "#8b0000" };
 const RADIUS_M = 1500;
 let last = null, map = null, groups = null, mapFile = null, lastOsm = null, lastVenueId = null;
+const detailed = () => Boolean(document.querySelector("#ov-detailed")?.checked);
 
 // ------------------------------------------------------------------ corrections
 // People who walked the streets know better than the map: footpath widths (OpenStreetMap rarely has
@@ -96,6 +97,33 @@ const status = (t) => { $("#ov-status").textContent = t; };
 async function sha1(text) {
   const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ------------------------------------------------------------------ fast map data: vector tiles
+// OpenFreeMap serves OpenStreetMap as vector tiles from a CDN: free, no key, no rate limit, about a
+// second for a venue's surroundings. Same tile maths as roomtobreathe/surroundings/tiles.py.
+const TILEJSON = "https://tiles.openfreemap.org/planet", TILE_ZOOM = 14;
+function tilesAround(lat, lon, radiusM, z = TILE_ZOOM) {
+  const n = 2 ** z, rad = (d) => (d * Math.PI) / 180;
+  const tx = (lo) => ((lo + 180) / 360) * n;
+  const ty = (la) => ((1 - Math.asinh(Math.tan(rad(la))) / Math.PI) / 2) * n;
+  const dlat = radiusM / 111320, dlon = radiusM / (111320 * Math.cos(rad(lat)));
+  const out = [];
+  for (let x = Math.floor(tx(lon - dlon)); x <= Math.floor(tx(lon + dlon)); x++)
+    for (let y = Math.floor(ty(lat + dlat)); y <= Math.floor(ty(lat - dlat)); y++) out.push({ z, x, y });
+  return out;
+}
+async function fetchTiles(lat, lon, radiusM) {
+  status("Downloading the streets around the venue (OpenStreetMap vector tiles)…");
+  const meta = await (await fetch(TILEJSON)).json();
+  const template = meta.tiles[0];
+  const want = tilesAround(lat, lon, Math.max(3000, 2 * radiusM));
+  const tiles = await Promise.all(want.map(async (t) => {
+    const r = await fetch(template.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y));
+    if (!r.ok) throw new Error(`map tile ${t.z}/${t.x}/${t.y}: ${r.status}`);
+    return { ...t, data: new Uint8Array(await r.arrayBuffer()) };
+  }));
+  return { tiles, missing: [] };
 }
 
 const PART_NAMES = ["streets", "main roads further out", "stations, stops, car parks, hospitals, police and fire stations"]; // as in osm.py
@@ -199,7 +227,7 @@ async function run(e) {
     if (usingServer()) {
       status("Downloading the streets and planning on the control-room server (the first time can take a few minutes)…");
       const resp = await fetch("api/overview", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venue: planVenue, attendance: p.attendance, options: p, ...(mapFile ? { osm_text: mapFile } : {}) }) });
+        body: JSON.stringify({ venue: planVenue, attendance: p.attendance, options: { ...p, source: detailed() ? "overpass" : "tiles" }, ...(mapFile ? { osm_text: mapFile } : {}) }) });
       if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || resp.statusText);
       r = await resp.json();
     } else {
@@ -208,14 +236,24 @@ async function run(e) {
       const where = `${venue.origin[0].toFixed(5)},${venue.origin[1].toFixed(5)}`;
       if (mapFile) {
         osm = { parts: [mapFile], missing: [] };
-      } else if (lastOsm?.where === where && !lastOsm.missing.length) {
+      } else if (!detailed() && lastOsm?.where === where && lastOsm.tiles) {
+        osm = lastOsm; // re-planning: same place, no need to download again
+      } else if (!detailed()) {
+        try {
+          osm = { ...(await fetchTiles(venue.origin[0], venue.origin[1], RADIUS_M)), where };
+        } catch (err) { // tiles unreachable: fall back to the Overpass servers
+          status(`The fast map tiles did not load (${err.message}); asking the OpenStreetMap servers instead…`);
+          const queries = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_queries", {}, "#ov-status");
+          osm = { ...(await fetchOsm(queries)), where };
+        }
+      } else if (lastOsm?.where === where && lastOsm.parts && !lastOsm.missing.length) {
         osm = lastOsm; // re-planning: same place, no need to download again
       } else {
         const queries = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_queries", {}, "#ov-status");
         osm = { ...(await fetchOsm(queries)), where };
       }
       lastOsm = mapFile ? null : osm;
-      r = await inBrowserEngine(planVenue, p, "overview", { osm: osm.parts, missing: osm.missing }, "#ov-status");
+      r = await inBrowserEngine(planVenue, p, "overview", { osm: osm.parts, tiles: osm.tiles, tilesKey: osm.tiles ? where : null, missing: osm.missing }, "#ov-status");
     }
     last = r;
     await render(r);

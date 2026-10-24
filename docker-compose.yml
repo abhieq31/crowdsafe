@@ -2,7 +2,7 @@
 # Put your venue file at ./data/venue.json (roomtobreathe venue new). The event record goes to ./data/logs.
 services:
   roomtobreathe:
-    image: ghcr.io/abhieq31/roomtobreathe:latest
+    image: ghcr.io/abhipatelz/roomtobreathe:latest
     build:
       context: .
       dockerfile: docker/Dockerfile

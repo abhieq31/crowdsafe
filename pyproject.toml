@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.9"
-authors = [{ name = "abhieq31" }]
+authors = [{ name = "abhipatelz" }]
 keywords = ["crowd safety", "stampede", "crowd crush", "disaster risk reduction", "computer vision", "early warning"]
 classifiers = [
   "Intended Audience :: Science/Research",
@@ -34,11 +34,11 @@ roomtobreathe = "roomtobreathe.cli:main"
 rtb = "roomtobreathe.cli:main"
 
 [project.urls]
-Homepage = "https://abhieq31.github.io/roomtobreathe/"
-Source = "https://github.com/abhieq31/roomtobreathe"
-Documentation = "https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md"
-Issues = "https://github.com/abhieq31/roomtobreathe/issues"
-Changelog = "https://github.com/abhieq31/roomtobreathe/releases"
+Homepage = "https://abhipatelz.github.io/roomtobreathe/"
+Source = "https://github.com/abhipatelz/roomtobreathe"
+Documentation = "https://github.com/abhipatelz/roomtobreathe/blob/main/docs/DEPLOY.md"
+Issues = "https://github.com/abhipatelz/roomtobreathe/issues"
+Changelog = "https://github.com/abhipatelz/roomtobreathe/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]

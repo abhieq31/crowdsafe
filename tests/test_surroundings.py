@@ -499,3 +499,111 @@ def test_name_correction_covers_unnamed_stretches_of_the_street():
     net = StreetNetwork.from_overpass(data, ORIGIN, {"name:Main Road": {"walk_width": 9}})
     unnamed = [e for e in net.edges if e.way == 5555]
     assert unnamed and all(e.walk_width == 9 and not e.estimated_width for e in unnamed)
+
+
+# ------------------------------------------------------------------ fast map data: vector tiles
+def _mvt(layers):
+    """A minimal Mapbox Vector Tile encoder for tests: {layer: [(props, 'line'|'point', [(x, y), ...])]}."""
+    def varint(n):
+        out = bytearray()
+        while True:
+            b = n & 0x7F
+            n >>= 7
+            out.append(b | (0x80 if n else 0))
+            if not n:
+                return bytes(out)
+
+    def field(num, wire, payload):
+        key = varint((num << 3) | wire)
+        return key + (varint(len(payload)) + payload if wire == 2 else varint(payload))
+
+    zz = lambda v: (v << 1) ^ (v >> 31)  # noqa: E731
+    tile = b""
+    for name, feats in layers.items():
+        keys, values, body = [], [], b""
+        for props, kind, pts in feats:
+            tags = []
+            for k, v in props.items():
+                if k not in keys:
+                    keys.append(k)
+                if v not in values:
+                    values.append(v)
+                tags += [keys.index(k), values.index(v)]
+            cmds, x, y = [], 0, 0
+            for i, (px, py) in enumerate(pts):
+                if i == 0:
+                    cmds.append(9)
+                elif i == 1:
+                    cmds.append(2 | ((len(pts) - 1) << 3))
+                cmds += [zz(px - x), zz(py - y)]
+                x, y = px, py
+            packed = lambda a: b"".join(varint(v) for v in a)  # noqa: E731
+            feat = field(2, 2, packed(tags)) + field(3, 0, 2 if kind == "line" else 1) + field(4, 2, packed(cmds))
+            body += field(2, 2, feat)
+        vals = b""
+        for v in values:
+            vals += field(4, 2, field(1, 2, v.encode()) if isinstance(v, str) else field(4, 0, v))
+        layer = field(15, 0, 2) + field(1, 2, name.encode()) + body
+        layer += b"".join(field(3, 2, k.encode()) for k in keys) + vals + field(5, 0, 4096)
+        tile += field(3, 2, layer)
+    return tile
+
+
+def test_vector_tiles_become_a_connected_network():
+    from roomtobreathe.surroundings.tiles import tile_to_lonlat, tiles_to_osm
+
+    z, tx, ty = 14, 12000, 7000
+    lon, lat = tile_to_lonlat(tx + 0.5, ty + 0.5, z)
+    # A main road across the tile, and a lane ending ON it without a shared point (as tiles often do);
+    # a second tile continues the main road from its edge.
+    left = _mvt({
+        "transportation": [({"class": "primary"}, "line", [(0, 2048), (4096, 2048)]),
+                           ({"class": "minor", "oneway": 1}, "line", [(2000, 0), (2000, 2047)])],
+        "transportation_name": [({"name": "Station Road", "class": "primary"}, "line", [(0, 2049), (4096, 2049)])],
+        "poi": [({"class": "hospital", "name": "City Hospital"}, "point", [(2100, 2300)]),
+                ({"class": "railway", "subclass": "subway", "name": "Central"}, "point", [(1000, 1000)])],
+    })
+    right = _mvt({"transportation": [({"class": "primary"}, "line", [(0, 2048), (4096, 2048)])]})
+    osm = tiles_to_osm([((z, tx, ty), left), ((z, tx + 1, ty), right)], (lat, lon), 1500)
+    net = StreetNetwork.from_overpass(osm, (lat, lon))
+    main = [e for e in net.edges if e.highway == "primary"]
+    assert main and all(e.name == "Station Road" for e in main)
+    lane = [e for e in net.edges if e.highway == "residential"]
+    assert lane and all(e.drive_fwd and not e.drive_back for e in lane)
+    # one connected walk network: the lane joins the main road, and the two tiles join at their edge
+    start = lane[0].u
+    reach, _ = net.shortest_paths(start, lambda e: e.length)
+    assert len(reach) == len(net.nodes)
+    kinds = {p.kind: p.label for p in net.pois}
+    assert kinds["hospital"] == "City Hospital" and kinds["metro"] == "Central"
+    assert osm["source"] == "openfreemap-tiles"
+
+
+def test_plan_from_tiles_notes_the_source():
+    from roomtobreathe.surroundings.tiles import tiles_to_osm
+
+    # The synthetic town drawn as one tile is overkill; reuse the Overpass town and label it as tiles.
+    data = dict(town(), source="openfreemap-tiles")
+    r = event_overview(venue(), 3000, data, radius_m=420)
+    assert any("vector tiles" in n for n in r["notes"])
+    assert callable(tiles_to_osm)
+
+
+def test_tiles_are_the_default_and_fall_back_to_overpass(monkeypatch, tmp_path):
+    from roomtobreathe.surroundings import tiles as tiles_mod
+
+    calls = []
+    tiles_data = {"elements": [], "source": "openfreemap-tiles"}
+    monkeypatch.setattr(tiles_mod, "fetch_tiles_osm", lambda *a, **k: calls.append("tiles") or tiles_data)
+    monkeypatch.setattr(osm_mod, "fetch_osm", lambda *a, **k: calls.append("overpass") or {"elements": []})
+    osm_mod.load_or_fetch(*ORIGIN, 420, cache_dir=str(tmp_path))
+    osm_mod.load_or_fetch(*ORIGIN, 420, cache_dir=str(tmp_path), source="overpass")
+    assert calls == ["tiles", "overpass"]
+
+    def down(*a, **k):
+        raise OSError("CDN unreachable")
+
+    monkeypatch.setattr(tiles_mod, "fetch_tiles_osm", down)
+    calls.clear()
+    osm_mod.load_or_fetch(*ORIGIN, 420, cache_dir=str(tmp_path), refresh=True)
+    assert calls == ["overpass"]
