@@ -124,6 +124,16 @@ function currentVenue() {
   return { venue: serverVenue || demoVenue, problems: [] };
 }
 function refreshVenue() {
+  queueMicrotask(updateGuide);
+  // On the map path the editing lists appear once there is a venue to edit: no jargon before it is needed.
+  const b = $("#wi-builder");
+  const sizes = store.get("wi-mode", "map") === "sizes";
+  if (b) b.classList.toggle("has-venue", draft.zones.length > 0 || draft.gates.length > 0 || sizes);
+  const lists = $("#wi-lists");
+  if (lists) {
+    if (sizes) lists.open = true;
+    $("#wi-lists-sum").textContent = `${plural(draft.zones.length, "area")}, ${plural(draft.gates.length, "way")} in or out`;
+  }
   const { venue, problems } = currentVenue();
   const out = $("#wi-venue-out");
   const sel = $('#wi-form [name="blocked_gate"]');
@@ -141,7 +151,7 @@ function refreshVenue() {
     ?? (z.area_m2 ?? (z.polygon?.length ? polygonArea(z.polygon) : 0)) * (z.usable_fraction ?? 1);
   const area = venue.zones.reduce((s, z) => s + zoneArea(z), 0);
   out.innerHTML = problems.map((p) => `<p class="err">${esc(p)}</p>`).join("")
-    + `<p><b>${esc(venue.name)}</b>: ${plural(venue.zones.length, "zone")}, ${plural(venue.gates.length, "gate")}, ${Math.round(area).toLocaleString()} m² usable.</p>`;
+    + `<p><b>${esc(venue.name)}</b>: ${Math.round(area).toLocaleString()} m² where people can stand, ${plural(venue.gates.length, "way")} in or out.</p>`;
 }
 
 // ------------------------------------------------------------------ engine
@@ -276,6 +286,45 @@ async function run(e) {
   }
 }
 
+// ------------------------------------------------------------------ the step guide
+// Four steps shown at the top: what is done, what is next. Each one jumps to its place on the page.
+function updateGuide() {
+  const guide = $("#guide");
+  if (!guide) return;
+  const { venue, problems } = currentVenue();
+  const custom = $("#wi-src").value === "custom";
+  const done = {
+    venue: Boolean(venue) && !problems.length && (!custom || draft.zones.length > 0),
+    people: Number($('#as-form [name="attendance"]')?.value) > 0,
+    verdict: !$("#as-result").hidden,
+    teams: !$("#ov-out").hidden,
+  };
+  let next = null;
+  for (const li of guide.querySelectorAll("li[data-step]")) {
+    const d = done[li.dataset.step];
+    li.classList.toggle("done", d);
+    li.classList.toggle("now", !d && !next);
+    if (!d && !next) next = li.dataset.step;
+  }
+}
+const GUIDE_TARGET = { venue: ".pl-venue", people: '#as-form [name="attendance"]', verdict: "#as-result", teams: "#ov-card" };
+function initGuide() {
+  const guide = $("#guide");
+  if (!guide) return;
+  guide.addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-step]");
+    if (!li) return;
+    let el = $(GUIDE_TARGET[li.dataset.step]);
+    if (li.dataset.step === "verdict" && el.hidden) el = $('#as-form [name="attendance"]');
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (el?.matches("input")) setTimeout(() => el.focus({ preventScroll: true }), 300);
+  });
+  $("#as-form").addEventListener("input", updateGuide);
+  const watch = new MutationObserver(updateGuide);
+  for (const id of ["#as-result", "#ov-out"]) watch.observe($(id), { attributes: true, attributeFilter: ["hidden"] });
+  updateGuide();
+}
+
 // ------------------------------------------------------------------ the verdict
 const ICON = { pass: "✓", warn: "!", fail: "✕" };
 function renderVerdict(r, venue) {
@@ -298,7 +347,7 @@ function renderVerdict(r, venue) {
   const caveat = guessed
     ? `<div class="caveat"><b>Based on guessed ways in.</b> The map has no gates for this venue, so ${draft.gates.length} were
         placed at the points nearest the streets, ${draft.gates[0]?.width || 4} m wide. Move them to the real gates and set their
-        widths (map → Adjust shapes, or the list under the map), then check again.</div>`
+        widths (on the map: Adjust shapes; or "Edit areas and ways in"), then check again.</div>`
     : estimated ? `<div class="caveat">Gate widths are estimated from the street type. Measure the real openings for a firm capacity.</div>` : "";
   box.innerHTML = `
     <div class="score v-${r.verdict}">
@@ -460,6 +509,7 @@ export async function initWhatIf({ online }) {
     URL.revokeObjectURL(a.href);
   });
   $("#wi-form").addEventListener("submit", run);
+  initGuide();
   // The header search: find the venue from anywhere in the app.
   $("#nav-search")?.addEventListener("submit", (e) => {
     e.preventDefault();

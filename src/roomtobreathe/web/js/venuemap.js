@@ -93,6 +93,7 @@ function addGate(a, b) {
 }
 
 function setMode(m) {
+  if (m) idle(false);
   mode = m; pts = [];
   if (sketch) { map.removeLayer(sketch); sketch = null; }
   map.getContainer().classList.toggle("drawing", m === "zone" || m === "gate");
@@ -154,7 +155,18 @@ async function photon(q) {
   });
 }
 
+// Small map with a hint until there is a place to show.
+function idle(on) {
+  const el = $("#wi-map");
+  if (!el) return;
+  el.classList.toggle("idle", on);
+  el.querySelector(".map-hint")?.remove();
+  if (on) el.insertAdjacentHTML("beforeend", `<div class="map-hint"><span>Search for your venue above, or press Where am I</span></div>`);
+  setTimeout(() => map?.invalidateSize(), 300);
+}
+
 function goTo(place) {
+  idle(false);
   if (place.bounds && place.bounds.every(Number.isFinite) && place.bounds[0] !== place.bounds[1]) {
     const [s, n, w, e] = place.bounds;
     map.fitBounds([[s, w], [n, e]], { maxZoom: 18 });
@@ -324,6 +336,7 @@ export async function openMap(state, changed) {
   map = L.map("wi-map", { zoomControl: true, scrollWheelZoom: false }).setView(draft.origin || [20, 0], draft.origin ? 17 : 2);
   map.on("click", () => map.scrollWheelZoom.enable());
   map.on("mouseout", () => map.scrollWheelZoom.disable());
+  if (!draft.origin && !draft.zones.length) idle(true);
   const streets = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' });
   const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
@@ -359,10 +372,10 @@ export async function openMap(state, changed) {
     help("Finding you…");
     map.locate({ setView: true, maxZoom: 17 });
   });
-  map.on("locationfound", () => help("This is where you are. Draw the zones around you."));
+  map.on("locationfound", () => { idle(false); help("This is where you are. Draw the area where people will stand."); });
   map.on("locationerror", () => help("Location not available. Search for the place instead."));
   help(draft.origin ? "Your venue. Press Adjust shapes to move corners, or draw more zones and gates."
-    : "Search for the venue, or press 'Where am I', then draw the zones.");
+    : "Type the venue's name in the search box at the top: we find its outline and its ways in for you.");
   redraw();
   const drawn = draft.zones.flatMap((z) => z.ll || []).concat(draft.gates.flatMap((g) => g.ll || []));
   if (drawn.length) map.fitBounds(drawn, { padding: [30, 30], maxZoom: 19 });

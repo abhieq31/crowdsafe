@@ -44,7 +44,7 @@ trained person still decides.
 | 5 | **No trust signal at the moment of decision.** Free, private and open source are said only in the footer. | Footer | Trust chips under the main button: *Free · No sign-up · Nothing uploaded · Open source*. |
 | 6 | **Results read like a report, not a decision.** The key numbers (safe capacity, time to clear) are inside sentences. | Verdict card | **Big numbers** in a scorecard: safe capacity, people expected, time to clear, warning time. Then the fixes as a checklist, each with a next action. |
 | 7 | **Step 3 is a second, separate journey.** It repeats inputs and does not say when to use it. | Step 3 form | After a verdict, one obvious next button: *Plan police, traffic and medical teams →*, with sensible defaults already filled in. |
-| 8 | **The look does not signal "serious tool".** The generic dark theme and low-contrast buttons make it hard to find the next action. | Screenshots | A bright, commerce-grade design language: dark header with a big search bar, light page, white cards, one high-contrast yellow main action per screen, orange for the next step. |
+| 8 | **The look does not help the eye.** The generic dark theme with low-contrast buttons makes the next action hard to find, and there is no sense of progress. | Screenshots | **A calm identity of its own**: deep teal on soft paper, generous space, one teal action at a time, gentle tinted verdict colours, and a 4-step guide (venue → people → verdict → teams) that shows where you are. |
 
 ## 5. Tenets (to settle disagreements quickly)
 

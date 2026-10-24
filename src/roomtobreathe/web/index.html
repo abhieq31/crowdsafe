@@ -21,10 +21,11 @@
   <header class="topbar">
     <a class="brand" href="./" aria-label="Room to Breathe, home"><span class="logo" aria-hidden="true"></span><span class="brand-name">Room to Breathe</span></a>
     <form class="nav-search" id="nav-search" role="search">
-      <label class="nav-scope" for="nav-q">Find venue</label>
+      <label class="nav-scope" for="nav-q">Where is your event?</label>
+      <svg class="nav-ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
       <input id="nav-q" type="search" enterkeyhint="search" autocomplete="off"
-        placeholder="Ground, stadium, temple, park, or paste a Google Maps link">
-      <button class="nav-go" aria-label="Search for the venue"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+        placeholder="Where is your event? A ground, stadium, temple or park">
+      <button class="nav-go">Find</button>
     </form>
     <button class="who" id="who" title="Operator name and access code">Sign in</button>
     <div class="conn" id="conn" title="Server connection">offline</div>
@@ -122,14 +123,15 @@
       <header class="hero">
         <div class="hero-text">
           <h1>Is your event safe?</h1>
-          <p>Find your venue, say how many people are coming, and get a verdict in seconds: what to fix, and where to
-            place police, traffic and medical teams.</p>
+          <p>Tell us where and how many people. In a few seconds you will know if it is safe, what to change, and where
+            to place police, traffic and medical teams.</p>
         </div>
-        <ul class="promises">
-          <li><b>Seconds</b><span>to a verdict</span></li>
-          <li><b>1 click</b><span>venue outline from the map</span></li>
-          <li><b>Free</b><span>private, open source</span></li>
-        </ul>
+        <ol class="guide" id="guide" aria-label="Your progress">
+          <li data-step="venue" class="now">Find the venue</li><li class="sep" aria-hidden="true">→</li>
+          <li data-step="people">Say how many people</li><li class="sep" aria-hidden="true">→</li>
+          <li data-step="verdict">Get the verdict</li><li class="sep" aria-hidden="true">→</li>
+          <li data-step="teams">Plan the teams</li>
+        </ol>
       </header>
 
       <div class="plan-layout">
@@ -168,6 +170,8 @@
             <p class="small muted">A gate is a line across the opening at its narrowest point: its length is the width.
               Searches go to OpenStreetMap's free search services (Nominatim and Photon); nothing you draw leaves this device.</p>
           </div>
+          <details class="builder-lists" id="wi-lists">
+            <summary><b>Edit areas and ways in</b> <span class="small muted" id="wi-lists-sum"></span></summary>
           <label class="small muted name-row">Venue name <input id="wi-name" placeholder="e.g. Ram Navami Mela ground"></label>
           <h3>Zones <span class="small muted">— the areas people stand in</span></h3>
           <div id="wi-zones" class="rows"></div>
@@ -177,6 +181,7 @@
           <button id="wi-add-gate" type="button">+ Add gate</button>
           <p class="small muted">"From → To" is the direction people walk. A gate to <b>Outside</b> is an exit.
             Areas can be typed as 40 x 24 (metres).</p>
+          </details>
         </div>
         <div id="wi-venue-out" class="venue-out"></div>
         <p class="small muted"><button type="button" class="link" id="wi-load">Open a venue file</button> ·
