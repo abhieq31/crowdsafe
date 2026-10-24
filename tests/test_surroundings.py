@@ -607,3 +607,53 @@ def test_tiles_are_the_default_and_fall_back_to_overpass(monkeypatch, tmp_path):
     calls.clear()
     osm_mod.load_or_fetch(*ORIGIN, 420, cache_dir=str(tmp_path), refresh=True)
     assert calls == ["overpass"]
+
+
+# ------------------------------------------------------------------ the venue, found for you
+def _ring(x0, y0, x1, y1):
+    return [to_latlon(ORIGIN, x, y) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
+
+
+def test_ways_in_are_where_streets_cross_the_outline():
+    from roomtobreathe.surroundings.venue_detect import detect_gates
+
+    # A ground spanning the street at y=0 (Main Road) and x=0 (Station Road): 4 crossings.
+    d = detect_gates(town(), _ring(-50, -50, 50, 50), ORIGIN, name="Square")
+    assert 9500 < d["area_m2"] < 10500
+    streets = sorted(g["street"] for g in d["gates"])
+    assert streets == ["Main Road", "Main Road", "Station Road", "Station Road"]
+    assert all(not g["guessed"] and 2 <= g["width_m"] <= 12 and len(g["line"]) == 2 for g in d["gates"])
+    # the gate line lies on the outline (x or y = +-50 m)
+    from roomtobreathe.surroundings.network import to_local
+    for g in d["gates"]:
+        (ax, ay), (bx, by) = (to_local(ORIGIN, *p) for p in g["line"])
+        assert min(abs(abs(ax) - 50), abs(abs(ay) - 50)) < 1.5
+        assert math.hypot(bx - ax, by - ay) == pytest.approx(g["width_m"], abs=0.2)
+
+
+def test_fenced_ground_gets_guessed_ways_in():
+    from roomtobreathe.surroundings.venue_detect import detect_gates
+
+    # Inside a block, touching no street: ways in are guessed at the nearest streets, and say so.
+    d = detect_gates(town(), _ring(-180, 120, -120, 180), ORIGIN)
+    assert d["gates"] and all(g["guessed"] for g in d["gates"])
+    assert any("guesses" in n for n in d["notes"])
+    with pytest.raises(ValueError):
+        detect_gates(town(), _ring(0, 0, 1, 1)[:2], ORIGIN)
+
+
+def test_found_venue_plugs_into_a_plan():
+    from roomtobreathe.assess import assess_event
+    from roomtobreathe.surroundings.network import to_local
+    from roomtobreathe.surroundings.venue_detect import detect_gates
+
+    d = detect_gates(town(), _ring(-50, -50, 50, 50), ORIGIN)
+    o = tuple(d["origin"])
+    v = {"id": "found", "name": "Found ground", "origin": list(o),
+         "zones": [{"id": "g", "name": "Ground", "polygon": [list(to_local(o, *p)) for p in _ring(-50, -50, 50, 50)]}],
+         "gates": [{"id": f"G{i}", "name": g["name"], "from": "g", "to": "outside", "width_m": g["width_m"],
+                    "line": [list(to_local(o, *p)) for p in g["line"]]} for i, g in enumerate(d["gates"])]}
+    r = assess_event(v, 3000, 60)
+    assert r["verdict"] in ("pass", "warn", "fail") and r["numbers"]["evacuation_minutes"] is not None
+    assert set(r["numbers"]) == {"peak_density", "evacuation_minutes", "people_inside_at_peak", "surge_warning_minutes"}
+    assert event_overview(v, 3000, town(), radius_m=420)["deployments"]

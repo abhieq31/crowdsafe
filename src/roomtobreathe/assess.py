@@ -114,6 +114,7 @@ def assess_event(venue_dict: dict, attendance: int, arrival_minutes: float = 60.
     surge_none = simulate(sim_venue, w, respond=False)
     surge_resp = simulate(sim_venue, w, respond=True)
     sc = [s for s in surge_none["summary"] if s["critical_at_min"] is not None]
+    surge_warning_min = None
     if not sc:
         checks.append(_check("pass", "A sudden surge stays safe",
                              f"Even if arrivals jump 2.5x at minute {w.surge_at_min:g}, "
@@ -121,6 +122,7 @@ def assess_event(venue_dict: dict, attendance: int, arrival_minutes: float = 60.
     else:
         first = min(sc, key=lambda s: s["critical_at_min"])
         lead = first["warning_lead_min"]
+        surge_warning_min = lead
         lead_txt = f" The RED alert comes {lead:g} min before." if lead else ""
         if surge_resp["reached_critical"]:
             zs = ", ".join(names[z] for z in surge_resp["reached_critical"])
@@ -187,4 +189,11 @@ def assess_event(venue_dict: dict, attendance: int, arrival_minutes: float = 60.
         "safe_capacity": cap.safe_capacity, "limiting_factor": cap.limiting_factor,
         "checks": sorted(checks, key=lambda c: -ORDER[c["level"]]), "fixes": fixes,
         "surge": {"no_response": surge_none, "with_response": surge_resp},
+        # The key numbers on their own, for a scorecard (the checks say the same in words).
+        "numbers": {
+            "peak_density": round(max(s["peak_density"] for s in normal["summary"]), 1) if normal["summary"] else None,
+            "evacuation_minutes": t,
+            "people_inside_at_peak": evac["people_inside"],
+            "surge_warning_minutes": surge_warning_min,
+        },
     }

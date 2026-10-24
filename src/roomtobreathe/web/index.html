@@ -19,17 +19,25 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo" aria-hidden="true">◉</span> Room to Breathe</div>
-    <nav class="tabs" role="tablist">
+    <a class="brand" href="./" aria-label="Room to Breathe, home"><span class="logo" aria-hidden="true"></span><span class="brand-name">Room to Breathe</span></a>
+    <form class="nav-search" id="nav-search" role="search">
+      <label class="nav-scope" for="nav-q">Find venue</label>
+      <input id="nav-q" type="search" enterkeyhint="search" autocomplete="off"
+        placeholder="Ground, stadium, temple, park, or paste a Google Maps link">
+      <button class="nav-go" aria-label="Search for the venue"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    </form>
+    <button class="who" id="who" title="Operator name and access code">Sign in</button>
+    <div class="conn" id="conn" title="Server connection">offline</div>
+  </header>
+    <nav class="tabs subnav" role="tablist" aria-label="Sections">
       <button role="tab" data-tab="live" aria-selected="true">Live command</button>
       <button role="tab" data-tab="whatif">Plan an event</button>
       <button role="tab" data-tab="photo">Count a crowd</button>
       <button role="tab" data-tab="count">Gate counter</button>
       <button role="tab" data-tab="plan">Permit check</button>
+      <span class="subnav-note">Free · No sign-up · Nothing leaves your device</span>
     </nav>
-    <button class="who" id="who" title="Operator name and access code">Sign in</button>
-    <div class="conn" id="conn" title="Server connection">offline</div>
-  </header>
+
 
   <dialog id="signin">
     <form method="dialog" class="form">
@@ -112,11 +120,20 @@
   <main id="tab-whatif" class="tab">
     <div class="flow">
       <header class="hero">
-        <h1>Is your event safe?</h1>
-        <p>Show where it is and how many people are coming. Room to Breathe checks it the way a crowd-safety
-          expert would: capacity, arrival, a sudden surge and a full evacuation.</p>
+        <div class="hero-text">
+          <h1>Is your event safe?</h1>
+          <p>Find your venue, say how many people are coming, and get a verdict in seconds: what to fix, and where to
+            place police, traffic and medical teams.</p>
+        </div>
+        <ul class="promises">
+          <li><b>Seconds</b><span>to a verdict</span></li>
+          <li><b>1 click</b><span>venue outline from the map</span></li>
+          <li><b>Free</b><span>private, open source</span></li>
+        </ul>
       </header>
 
+      <div class="plan-layout">
+        <div class="pl-venue">
       <section class="card step">
         <h2 class="step-h"><span class="num">1</span> Where is it?</h2>
         <div class="choice" role="group" aria-label="How to describe the venue">
@@ -145,6 +162,7 @@
               <button id="wi-zone-cancel" type="button" class="link">Cancel</button>
             </div>
             <p class="small" id="wi-map-help" role="status"></p>
+            <div class="found" id="wi-found" hidden aria-live="polite"></div>
             <ul class="places" id="wi-map-results"></ul>
             <div id="wi-map" class="wi-map" aria-label="Map of the venue"></div>
             <p class="small muted">A gate is a line across the opening at its narrowest point: its length is the width.
@@ -165,7 +183,9 @@
           <button id="wi-download" class="link" type="button">Save this venue</button></p>
       </section>
 
-      <section class="card step">
+        </div>
+        <aside class="buybox" aria-label="Check your event">
+      <section class="card step buybox-card">
         <h2 class="step-h"><span class="num">2</span> How many people?</h2>
         <form id="as-form" class="people-row">
           <input name="attendance" type="number" min="1" inputmode="numeric" placeholder="e.g. 5000" class="big-input"
@@ -180,6 +200,12 @@
         <div id="as-status" class="small muted" role="status"></div>
       </section>
 
+          <ul class="trust small">
+            <li>Free, no sign-up</li><li>Nothing you draw leaves your device</li><li>Open source: it shows its working</li>
+          </ul>
+          <div id="bb-summary" class="bb-summary" hidden aria-live="polite"></div>
+        </aside>
+        <div class="pl-results">
       <section class="card verdict-card" id="as-result" hidden aria-live="polite"></section>
 
       <section class="card step" id="ov-card">
@@ -187,7 +213,12 @@
         <p class="small">How the crowd gets there and home again through the streets, stations and stops; what it does to
           traffic; how ambulances get in; and <b>where to place police, traffic police, medical teams and stewards</b>.
           Uses free OpenStreetMap data. Needs the venue drawn on the map in step 1.</p>
-        <form id="ov-form" class="form ov-form">
+        <form id="ov-form" class="ov-form">
+          <div class="ov-go"><button class="btn-next big" id="ov-run">Plan police, traffic and medical teams</button>
+            <span class="small muted">About 2 seconds once the map has loaded.</span></div>
+          <details class="ov-assume">
+            <summary><b>Assumptions</b> <span class="small muted" id="ov-assume-sum">how people travel, when it ends, usual footfall</span> <span class="link small">Edit</span></summary>
+            <div class="form ov-assume-body">
           <fieldset class="modes"><legend>How do people travel? <span class="small muted">(% of the crowd)</span></legend>
             <label>Metro <input name="metro" type="number" min="0" max="100" value="25"></label>
             <label>Train <input name="rail" type="number" min="0" max="100" value="10"></label>
@@ -202,12 +233,13 @@
           <label>Usual footfall on these streets
             <select name="public_level"><option value="0.5">Quiet (residential)</option><option value="1" selected>Normal city evening</option>
               <option value="2">Busy (market, station area)</option></select></label>
-          <div class="btns"><button class="primary" id="ov-run">Plan the surroundings</button></div>
           <label class="small ov-detailed"><input type="checkbox" id="ov-detailed"> Detailed map data
             <span class="muted">(recorded footpath widths and emergency departments; slower: the free servers can take minutes)</span></label>
           <p class="small muted ov-file">Map servers busy, or no internet at the control room? Use a map file instead:
             <label class="link">choose an .osm or .json file<input type="file" id="ov-file" accept=".osm,.xml,.json,application/json" hidden></label>
             (on openstreetmap.org: zoom to the area and press <i>Export</i>). <span id="ov-file-name"></span></p>
+            </div>
+          </details>
         </form>
         <div id="ov-status" class="small muted" role="status"></div>
         <div id="ov-out" hidden></div>
@@ -230,6 +262,8 @@
         <div id="wi-status" class="small muted" role="status"></div>
         <div id="wi-results" hidden><div id="wi-out"></div></div>
       </details>
+        </div>
+      </div>
     </div>
   </main>
 

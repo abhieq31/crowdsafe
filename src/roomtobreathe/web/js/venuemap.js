@@ -2,6 +2,8 @@
 // each gate's opening. Areas and widths are measured from the drawing, so nobody has to guess them.
 // OpenStreetMap needs no account or key, which is what lets any local body use this for free.
 import { areaM2, gateSides, lengthM, mergePlaces, parseLocation, queryVariants } from "./geo.js";
+import { fetchTiles } from "./tiles.js";
+import { inBrowserEngine } from "./whatif.js";
 
 const LEAFLET = "https://unpkg.com/leaflet@1.9.4/dist/";
 const COLORS = ["#2456d6", "#e36b0a", "#2f9e5b", "#9b3fd1", "#d42a2a", "#0e8c8c", "#a8730a", "#5d6673"];
@@ -135,7 +137,8 @@ async function nominatim(q) {
   return (await r.json()).map((h) => {
     const parts = h.display_name.split(",").map((x) => x.trim());
     return { name: parts[0], where: parts.slice(1, 4).join(", "), lat: Number(h.lat), lon: Number(h.lon),
-      bounds: h.boundingbox?.map(Number) };
+      bounds: h.boundingbox?.map(Number), osm: h.osm_type && h.osm_id ? h.osm_type[0].toUpperCase() + h.osm_id : null,
+      kind: `${h.class}=${h.type}` };
   });
 }
 async function photon(q) {
@@ -146,7 +149,8 @@ async function photon(q) {
     const p = f.properties, [lon, lat] = f.geometry.coordinates;
     const where = [p.street, p.district || p.locality, p.city, p.state, p.country].filter((x, i, a) => x && a.indexOf(x) === i);
     const [w, n, e, s] = p.extent || [];
-    return { name: p.name || where[0], where: where.slice(0, 3).join(", "), lat, lon, bounds: p.extent ? [s, n, w, e] : null };
+    return { name: p.name || where[0], where: where.slice(0, 3).join(", "), lat, lon, bounds: p.extent ? [s, n, w, e] : null,
+      osm: p.osm_type && p.osm_id ? p.osm_type + p.osm_id : null, kind: `${p.osm_key}=${p.osm_value}` };
   });
 }
 
@@ -160,7 +164,90 @@ function goTo(place) {
   if (!draft.name && place.name) { draft.name = place.name; changedOnly(); }
   $("#wi-map-results").innerHTML = "";
   const label = [place.name, place.where].filter(Boolean).join(", ");
-  help(`${label}. Check it is the right place, then press Draw a zone and tap the corners of the area where people will stand.`);
+  help(`${label}. Looking for the ground's outline…`);
+  autoOutline(place, label).catch(() => {
+    help(`${label}. Check it is the right place, then press Draw a zone and tap the corners of the area where people will stand.`);
+  });
+}
+
+// ------------------------------------------------------------------ the venue, found for you
+// OpenStreetMap usually knows the outline of a stadium, park, maidan or temple compound. Ask Nominatim for
+// it, then let the engine find the ways in (where streets and paths cross the outline), so the customer
+// gets a ready venue in one click instead of drawing polygons and gates.
+const MIN_AREA = 300, MAX_AREA = 3e6;
+function ringOf(hit) {
+  const g = hit?.geojson;
+  if (!g) return null;
+  const coords = g.type === "Polygon" ? g.coordinates[0]
+    : g.type === "MultiPolygon" ? g.coordinates.map((p) => p[0]).sort((a, b) => b.length - a.length)[0] : null;
+  return coords ? coords.map(([lon, lat]) => [Math.round(lat * 1e7) / 1e7, Math.round(lon * 1e7) / 1e7]) : null;
+}
+async function nominatimJson(path) {
+  const r = await fetch(`https://nominatim.openstreetmap.org/${path}&format=json&polygon_geojson=1&polygon_threshold=0.00001`);
+  if (!r.ok) throw new Error(`search ${r.status}`);
+  return r.json();
+}
+async function findOutline(place) {
+  if (place.osm && /^[WR]/.test(place.osm)) {
+    const [hit] = await nominatimJson(`lookup?osm_ids=${place.osm}`);
+    const ring = ringOf(hit);
+    if (ring) return ring;
+  }
+  return ringOf(await nominatimJson(`reverse?zoom=17&lat=${place.lat}&lon=${place.lon}`));
+}
+
+let preview = null;
+async function autoOutline(place, label) {
+  const ring = await findOutline(place);
+  if (!ring || ring.length < 4) throw new Error("no outline");
+  const origin = [ring.reduce((s, p) => s + p[0], 0) / ring.length, ring.reduce((s, p) => s + p[1], 0) / ring.length];
+  const area = areaM2(origin, ring);
+  if (area < MIN_AREA || area > MAX_AREA) throw new Error("outline too small or too large");
+  if (preview) map.removeLayer(preview);
+  preview = L.layerGroup().addTo(map);
+  L.polygon(ring, { color: "#ff9900", weight: 3, dashArray: "6 5", fillOpacity: 0.12 }).addTo(preview);
+  map.fitBounds(L.polygon(ring).getBounds(), { padding: [24, 24], maxZoom: 18 });
+  const box = $("#wi-found");
+  box.hidden = false;
+  box.innerHTML = `<div class="found-head"><span class="found-pin" aria-hidden="true">✓</span><div><b>Found ${esc(place.name || "the ground")}</b>
+    <div class="small muted">${Math.round(area).toLocaleString()} m² from OpenStreetMap · finding the ways in…</div></div></div>`;
+  let gates = { gates: [], notes: [] };
+  try {
+    const { tiles } = await fetchTiles(origin[0], origin[1], 700);
+    gates = await inBrowserEngine(null, { ring, origin, name: place.name || "", radius_m: 700 }, "detect_gates", { tiles });
+  } catch (err) {
+    gates.notes = [`The ways in could not be found automatically (${err.message}). Draw them on the map.`];
+  }
+  for (const g of gates.gates) {
+    L.polyline(g.line, { color: g.guessed ? "#c45500" : "#111", weight: 7, dashArray: g.guessed ? "4 4" : null })
+      .bindTooltip(`${g.name} · ${g.width_m} m${g.guessed ? " (guess)" : ""}`).addTo(preview);
+  }
+  const n = gates.gates.length;
+  box.innerHTML = `<div class="found-head"><span class="found-pin" aria-hidden="true">✓</span><div><b>Found ${esc(place.name || "the ground")}</b>
+      <div class="small muted">${Math.round(area).toLocaleString()} m² · ${n ? `${n} way${n === 1 ? "" : "s"} in` : "no ways in found"}
+        ${gates.gates.some((g) => g.guessed) ? "(guessed: move them to the real gates)" : n ? "(widths estimated)" : ""}</div></div></div>
+    <div class="btns"><button type="button" class="btn-buy" id="wi-use-found">Use this venue</button>
+      <button type="button" id="wi-skip-found">Draw it myself</button></div>
+    ${gates.notes?.length ? `<p class="small muted">${esc(gates.notes.join(" "))}</p>` : ""}`;
+  help(`${label}.`);
+  $("#wi-use-found").onclick = () => {
+    draft.origin = origin;
+    draft.name = draft.name || place.name || "";
+    draft.zones = [{ name: place.name || "Ground", area: String(Math.round(area)), usable: 100, ll: ring }];
+    draft.gates = gates.gates.map((g, i) => ({ name: g.name, from: i === 0 ? "outside" : 0, to: i === 0 ? 0 : "outside",
+      width: g.width_m, stairs: false, closed: false, ll: g.line, guessed: g.guessed, estimated: true }));
+    map.removeLayer(preview); preview = null;
+    box.hidden = true;
+    help(`${place.name || "The venue"} is set: ${Math.round(area).toLocaleString()} m², ${n} way${n === 1 ? "" : "s"} in. `
+      + "Drag corners with Adjust shapes, or add gates, if anything differs on the ground.");
+    onChange();
+    document.dispatchEvent(new CustomEvent("rtb:venue-ready"));
+  };
+  $("#wi-skip-found").onclick = () => {
+    map.removeLayer(preview); preview = null;
+    box.hidden = true;
+    help(`${label}. Press Draw a zone and tap the corners of the area where people will stand.`);
+  };
 }
 
 async function search(e) {
@@ -187,8 +274,27 @@ async function search(e) {
     return;
   }
   if (places.length === 1) { goTo(places[0]); return; }
-  help(q.includes(",") ? `${places.length} places match. Pick yours:`
-    : `${places.length} places match. Pick yours, or add the city to narrow it down, e.g. "${q}, Delhi".`);
+  // Several matches but only one is a place where crowds gather (a stadium, not the station named after it):
+  // pick it, and keep the others one tap away.
+  const venues = places.filter((p) => VENUE_KIND.test(p.kind || ""));
+  const distinct = venues.filter((p, i) => venues.findIndex((q) => Math.hypot(q.lat - p.lat, q.lon - p.lon) < 0.002) === i);
+  if (distinct.length === 1) {
+    goTo(distinct[0]);
+    list.innerHTML = `<li class="small muted">Not this one? <button type="button" class="link" id="wi-other">See all ${places.length} matches</button></li>`;
+    $("#wi-other").onclick = () => showPlaces(places, q);
+    return;
+  }
+  showPlaces(places, q);
+}
+
+const VENUE_KIND = /(stadium|sports_centre|pitch|park|recreation_ground|fairground|festival|showground|common|square|place_of_worship|temple|mosque|church|gurudwara|marketplace|exhibition|events_venue|arena|amphitheatre|maidan|ground|garden)/;
+
+function showPlaces(places, q) {
+  const list = $("#wi-map-results");
+  // Grounds, parks, stadiums and temples first: those are where crowds gather.
+  places = [...places].sort((a, b) => VENUE_KIND.test(b.kind || "") - VENUE_KIND.test(a.kind || ""));
+  help(q.includes(",") || q.trim().split(/\s+/).length >= 3 ? `${places.length} places match. Pick yours:`
+    : `${places.length} places match. Pick yours, or add the city, e.g. "${q}, Kolkata".`);
   list.innerHTML = places.map((p, i) => `<li><button type="button" data-i="${i}"><b>${esc(p.name)}</b><span>${esc(p.where)}</span></button></li>`).join("")
     + `<li class="small muted">Not listed? Search a nearby landmark, or paste a Google Maps link.</li>`;
   list.onclick = (ev) => {
@@ -197,13 +303,27 @@ async function search(e) {
   };
 }
 
+let mapIsReady;
+const mapReady = new Promise((resolve) => { mapIsReady = resolve; });
+
+// Search from anywhere (the header search box): runs once the map has loaded.
+export async function searchPlace(q) {
+  await mapReady;
+  $("#wi-map-q").value = q;
+  $("#wi-map-panel").scrollIntoView({ block: "start", behavior: "smooth" });
+  await search({ preventDefault() {} });
+}
+
 export async function openMap(state, changed) {
   draft = state; changedOnly = changed; onChange = () => { changed(); redraw(); };
   $("#wi-map-panel").hidden = false;
   if (map) { map.invalidateSize(); redraw(); return; }
   help("Loading the map…");
   L = await loadLibs();
-  map = L.map("wi-map", { zoomControl: true }).setView(draft.origin || [20, 0], draft.origin ? 17 : 2);
+  // Scrolling the page must not zoom the map: wheel-zoom only after the map is clicked.
+  map = L.map("wi-map", { zoomControl: true, scrollWheelZoom: false }).setView(draft.origin || [20, 0], draft.origin ? 17 : 2);
+  map.on("click", () => map.scrollWheelZoom.enable());
+  map.on("mouseout", () => map.scrollWheelZoom.disable());
   const streets = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' });
   const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
@@ -214,6 +334,7 @@ export async function openMap(state, changed) {
   map.on("click", onMapClick);
   map.doubleClickZoom.disable(); // fast taps while drawing must not zoom
   $("#wi-map-search").addEventListener("submit", search);
+  mapIsReady();
   $("#wi-draw-zone").addEventListener("click", () => {
     setMode("zone");
     help("Tap each corner of the zone's edge in turn, then press Finish zone.");
