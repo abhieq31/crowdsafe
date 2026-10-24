@@ -17,7 +17,7 @@ Room to Breathe helps an administrative body, from a village temple committee to
 > structural: too many people, too few exits, a surge trigger, and decisions that come too late.
 > All of that is measurable, and therefore preventable.
 
-### ▶ [Open the web app](https://abhieq31.github.io/roomtobreathe/): nothing to install
+### ▶ [Open the web app](https://abhipatelz.github.io/roomtobreathe/): nothing to install
 
 Works on any phone or computer browser. It asks two things and gives one answer:
 
@@ -39,9 +39,9 @@ first aid, ambulances, stewards and station staff, how many, when and why**, on 
 for every agency, plus a briefing sheet for each agency. If a street on the map is wrong, tap it to correct its
 footpath width or mark it closed or blocked, then re-plan in seconds. On the command line:
 `rtb overview venue.json --people 60000 --html plan.html --briefings briefings/`.
-How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
+How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
 
-<p align="center"><img src="https://raw.githubusercontent.com/abhieq31/roomtobreathe/main/docs/img/overview.jpg" alt="Event overview around Eden Gardens: crowd routes, road closures, diversions, and every team's post" width="760"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/abhipatelz/roomtobreathe/main/docs/img/overview.jpg" alt="Event overview around Eden Gardens: crowd routes, road closures, diversions, and every team's post" width="760"></p>
 
 Also in the app: **Count a crowd** from a photo (people per m², the photo never leaves your device), a
 **Gate counter** for volunteers, and a **Permit check**. Planners can open *Try your own scenario* for
@@ -49,7 +49,7 @@ surges, blocked gates and evacuations of their choosing. On the command line: `r
 
 Live monitoring of real cameras runs on a computer at your venue: see [Use it at a real event](#use-it-at-a-real-event).
 
-<p align="center"><img src="https://raw.githubusercontent.com/abhieq31/roomtobreathe/main/docs/img/dashboard.jpg" alt="Room to Breathe live command dashboard" width="860"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/abhipatelz/roomtobreathe/main/docs/img/dashboard.jpg" alt="Room to Breathe live command dashboard" width="860"></p>
 
 ---
 
@@ -61,7 +61,7 @@ pip install "roomtobreathe[server]"
 roomtobreathe demo            # open http://127.0.0.1:8000
 ```
 
-Or run it in Docker: `docker run -p 8000:8000 ghcr.io/abhieq31/roomtobreathe`.
+Or run it in Docker: `docker run -p 8000:8000 ghcr.io/abhipatelz/roomtobreathe`.
 
 The demo simulates an evening rush at a puja pandal. Free prasad starts in the hall, word spreads, and people stop on the exit steps.
 Watch the hall go from green to red. Then press **Execute all** on the RED alert and watch the crowd recover.
@@ -92,20 +92,20 @@ into the corridor behind it (9 p/m²). The default playbook now follows the crow
 
 ## Use it at a real event
 
-**Read [docs/DEPLOY.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md).** It walks a district office or organising committee through the
+**Read [docs/DEPLOY.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/DEPLOY.md).** It walks a district office or organising committee through the
 whole event, from the physics that sets the time margin to the after-action record. The short version:
 
 | When | Step | Command |
 |---|---|---|
 | A week before | Describe the venue; get its safe capacity and structural warnings | `roomtobreathe venue new my_venue.json` |
-| A week before | Calibrate each camera to the ground in metres | [vision.md §1](https://github.com/abhieq31/roomtobreathe/blob/main/docs/vision.md#1-calibrate-each-camera-once) |
+| A week before | Calibrate each camera to the ground in metres | [vision.md §1](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/vision.md#1-calibrate-each-camera-once) |
 | Day before | Start the control room (Docker or Python) | `docker compose up -d` or `roomtobreathe serve --venue my_venue.json --host 0.0.0.0` |
 | Day before | Set up and test each camera device | `roomtobreathe setup`, then `roomtobreathe check` (must say READY) |
 | Day before | Rehearse: unplug a camera and confirm its zone turns grey and alerts | |
 | On the day | Run each camera device; operators sign in by name | `roomtobreathe edge` |
 | After | Keep the event record (every alert and approved action, with names) | `roomtobreathe-logs/*.jsonl` |
 
-Ready-made images: `ghcr.io/abhieq31/roomtobreathe` (control room) and `ghcr.io/abhieq31/roomtobreathe-edge`
+Ready-made images: `ghcr.io/abhipatelz/roomtobreathe` (control room) and `ghcr.io/abhipatelz/roomtobreathe-edge`
 (camera device, density model included, works offline).
 
 ---
@@ -156,12 +156,12 @@ flowchart LR
 
 - **Pure-Python core, no dependencies.** The engine runs on anything, including a Raspberry Pi or Termux on Android.
 - **Edge-first and privacy by design.** Video is processed on the device and only per-zone numbers are sent (around 200 B/s per camera).
-  There is **no face recognition and no individual tracking**, and there never will be. See [ETHICS.md](https://github.com/abhieq31/roomtobreathe/blob/main/ETHICS.md).
+  There is **no face recognition and no individual tracking**, and there never will be. See [ETHICS.md](https://github.com/abhipatelz/roomtobreathe/blob/main/ETHICS.md).
 - **Fail loud.** A camera that goes silent turns its zone **UNKNOWN** (grey, ranked like ORANGE). It never shows "safe".
 - **Explainable.** Every alert lists its reasons, and every recommended action carries a note explaining why.
 - **Interoperable.** Alerts export as **CAP 1.2** (`/api/alerts/{id}/cap`), the OASIS standard used by national alert systems.
 - **One logic, two runtimes.** The offline browser planner (`web/js/planning.js`) and the Python planner are checked against shared test vectors.
-- **Honest vision.** Bounding-box detectors undercount dense crowds, so the primary path is a density-map model. See [docs/vision.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/vision.md).
+- **Honest vision.** Bounding-box detectors undercount dense crowds, so the primary path is a density-map model. See [docs/vision.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/vision.md).
 
 ---
 
@@ -195,7 +195,7 @@ roomtobreathe edge      # on the day
    or the full form without any setup:
    `roomtobreathe edge --source rtsp://cam1/stream --calibration cam1.json --server http://control-room:8000`.
 4. The calibration file maps the camera's picture to the ground in metres, once per camera. See
-   [docs/vision.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/vision.md#1-calibrate-each-camera-once).
+   [docs/vision.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/vision.md#1-calibrate-each-camera-once).
 5. **Run `roomtobreathe check` the day before the event.** It tests the camera, the calibration, the model, this
    device's speed and the connection to the control room. Every problem comes with a fix in plain words.
    It also catches the most common silent mistake: a zone name that doesn't match the venue file.
@@ -211,8 +211,8 @@ curl -X POST localhost:8000/api/observations -H 'Content-Type: application/json'
   -d '[{"zone_id":"hall","source":"turnstile-3","count":1450,"density_sigma":0.3}]'
 ```
 
-Venue format: [`src/roomtobreathe/data/venues/pandal.json`](https://github.com/abhieq31/roomtobreathe/blob/main/src/roomtobreathe/data/venues/pandal.json).
-Playbook format: [`src/roomtobreathe/data/default_playbook.json`](https://github.com/abhieq31/roomtobreathe/blob/main/src/roomtobreathe/data/default_playbook.json).
+Venue format: [`src/roomtobreathe/data/venues/pandal.json`](https://github.com/abhipatelz/roomtobreathe/blob/main/src/roomtobreathe/data/venues/pandal.json).
+Playbook format: [`src/roomtobreathe/data/default_playbook.json`](https://github.com/abhipatelz/roomtobreathe/blob/main/src/roomtobreathe/data/default_playbook.json).
 API docs: `http://localhost:8000/docs`.
 
 ## Development
@@ -227,7 +227,7 @@ docker compose up   # control room in a container (demo unless data/venue.json e
 
 ## Roadmap
 
-See [docs/PLAN.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/PLAN.md) for the full design. Next steps:
+See [docs/PLAN.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/PLAN.md) for the full design. Next steps:
 
 - [ ] Venue editor (draw zones on OpenStreetMap)
 - [ ] JuPedSim agent-level simulation for permit review
@@ -237,7 +237,7 @@ See [docs/PLAN.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/PLAN
 - [ ] Multi-venue control room, Keycloak auth, Helm chart
 
 **Contributions are very welcome**, especially from crowd-safety practitioners, police and disaster
-management officers, and translators. See [CONTRIBUTING.md](https://github.com/abhieq31/roomtobreathe/blob/main/CONTRIBUTING.md).
+management officers, and translators. See [CONTRIBUTING.md](https://github.com/abhipatelz/roomtobreathe/blob/main/CONTRIBUTING.md).
 
 ## References
 
