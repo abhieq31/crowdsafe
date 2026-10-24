@@ -26,9 +26,21 @@ rtb overview my_venue.json --people 60000 \
     --modes "metro=25,rail=10,bus=25,car=20,walk=20" --html plan.html
 ```
 
-The venue must be drawn on the map (it needs a location, and gates need their positions). The first run
-downloads streets, stations and hospitals from OpenStreetMap's free Overpass servers. This can take 1-3
-minutes, and the data is then cached for 30 days. The download runs as three requests in parallel (streets,
+The venue must be drawn on the map (it needs a location, and gates need their positions).
+
+**Map data, fast by default.** Streets, stations and hospitals come from **OpenStreetMap vector tiles** served
+by [OpenFreeMap](https://openfreemap.org) (free, no key, no rate limit). The 9 tiles around a venue are about
+1.2 MB and download in under a second. `surroundings/tiles.py` decodes them (pure Python) and rebuilds a
+routable network: it snaps line ends and junctions within 3 m (tiles cut streets at tile edges and do not always
+share points at crossings), attaches street names from the separate name layer, and maps places to OSM tags.
+Around Eden Gardens it gives the same closures, the same receiving hospital and the same stations as Overpass
+data. In the web app a plan takes about 20 s, including loading the engine, and a re-plan about 8 s. Before,
+the Overpass download alone took 1-3 minutes or failed. Tiles lack recorded footpath widths and
+`emergency=yes` tags, so the plan says so.
+
+**Detailed data** (web app: *Detailed map data*; CLI: `--detailed`; API: `"source": "overpass"`) uses the
+Overpass servers instead, for those extra tags. It can take 1-3 minutes and is cached for 30 days. If the tiles
+cannot be reached, the Overpass servers are used automatically. The download runs as three requests in parallel (streets,
 main roads further out, places), each starting on a different one of three public servers (private.coffee and
 VK Maps, which state no rate limit, then the overloaded overpass-api.de) and **hedged**: if one has not answered
 in 15 s, the next is asked as well. Only the streets are essential: if the places fail, the plan is made without

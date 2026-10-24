@@ -235,8 +235,9 @@ def cmd_overview(a) -> int:
             osm = parse_osm(open(a.osm, encoding="utf-8").read())
         else:
             print("Downloading streets, stations and hospitals from OpenStreetMap (cached for 30 days; "
-                  "the first time can take a few minutes)…", file=sys.stderr)
-            osm = load_or_fetch(venue["origin"][0], venue["origin"][1], a.radius, refresh=a.refresh)
+                  "usually a few seconds; with --detailed it can take minutes)…", file=sys.stderr)
+            osm = load_or_fetch(venue["origin"][0], venue["origin"][1], a.radius, refresh=a.refresh,
+                                source="overpass" if a.detailed else "tiles")
         r = event_overview(venue, a.people, osm, modes=parse_modes(a.modes) if a.modes else None,
                            arrival_minutes=a.arrival_minutes, event_end_min=a.end_min,
                            departure_minutes=a.departure_minutes, public_level=a.public_level, radius_m=a.radius)
@@ -412,6 +413,9 @@ def main(argv=None) -> int:
     ov.add_argument("--osm", help="use this map file instead of downloading: Overpass JSON, or .osm XML "
                                   "(openstreetmap.org → Export)")
     ov.add_argument("--refresh", action="store_true", help="download fresh map data even if cached")
+    ov.add_argument("--detailed", action="store_true",
+                    help="use the Overpass servers (recorded widths, emergency departments) instead of the fast "
+                         "vector tiles; can take minutes")
     ov.add_argument("--html", help="write the printable plan with a map to this file")
     ov.add_argument("--briefings", help="write one briefing sheet per agency and posts.csv into this folder")
     ov.add_argument("--json", action="store_true")

@@ -1,5 +1,5 @@
 # Room to Breathe control-room server: API, dashboard, alerts, event record.
-#   docker run -p 8000:8000 -v $PWD/data:/data -e RTB_TOKEN=change-me ghcr.io/abhieq31/roomtobreathe
+#   docker run -p 8000:8000 -v $PWD/data:/data -e RTB_TOKEN=change-me ghcr.io/abhipatelz/roomtobreathe
 # With /data/venue.json present it runs live; without it, the demo.
 FROM python:3.12-slim
 WORKDIR /app

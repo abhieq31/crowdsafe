@@ -197,7 +197,7 @@ def create_app(venue: Venue, token: Optional[str] = None, tick_s: float = 1.0,
             if osm is None:
                 if not venue.get("origin"):
                     raise ValueError("the venue has no location ('origin'); draw it on the map first")
-                osm = load_or_fetch(venue["origin"][0], venue["origin"][1], radius)
+                osm = load_or_fetch(venue["origin"][0], venue["origin"][1], radius, source=o.get("source") or "tiles")
             modes = o.get("modes")
             if isinstance(modes, str):
                 modes = parse_modes(modes)

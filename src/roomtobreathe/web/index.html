@@ -12,8 +12,8 @@
   <meta name="description" content="Is your event safe? Trace the venue on a map, enter the crowd, get one verdict and what to change. Free, open source, runs in your browser.">
   <meta property="og:title" content="Room to Breathe: is your event safe?">
   <meta property="og:description" content="Is your event safe? Trace the venue on a map, enter the crowd, get one verdict and what to change. Free, open source, runs in your browser.">
-  <meta property="og:image" content="https://raw.githubusercontent.com/abhieq31/roomtobreathe/main/docs/img/overview.jpg">
-  <meta property="og:url" content="https://abhieq31.github.io/roomtobreathe/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/abhipatelz/roomtobreathe/main/docs/img/overview.jpg">
+  <meta property="og:url" content="https://abhipatelz.github.io/roomtobreathe/">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -51,7 +51,7 @@
     <section class="card notice" id="live-offline" hidden>
       <h2>Live command needs your own control room</h2>
       <p>Live monitoring runs on a computer at your venue, so camera numbers never travel over the internet.
-        Set it up with the <a href="https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md">deployment guide</a>.
+        Set it up with the <a href="https://github.com/abhipatelz/roomtobreathe/blob/main/docs/DEPLOY.md">deployment guide</a>.
         Everything else here works right now in this browser: <a href="#" data-goto="whatif">check your event</a>,
         <a href="#" data-goto="photo">count a crowd photo</a>, plan capacity, or use the gate counter.</p>
     </section>
@@ -203,6 +203,8 @@
             <select name="public_level"><option value="0.5">Quiet (residential)</option><option value="1" selected>Normal city evening</option>
               <option value="2">Busy (market, station area)</option></select></label>
           <div class="btns"><button class="primary" id="ov-run">Plan the surroundings</button></div>
+          <label class="small ov-detailed"><input type="checkbox" id="ov-detailed"> Detailed map data
+            <span class="muted">(recorded footpath widths and emergency departments; slower: the free servers can take minutes)</span></label>
           <p class="small muted ov-file">Map servers busy, or no internet at the control room? Use a map file instead:
             <label class="link">choose an .osm or .json file<input type="file" id="ov-file" accept=".osm,.xml,.json,application/json" hidden></label>
             (on openstreetmap.org: zoom to the area and press <i>Export</i>). <span id="ov-file-name"></span></p>
@@ -362,8 +364,8 @@
 
   <footer class="foot small muted">
     Room to Breathe is decision support. A trained person decides. No face recognition, no individual tracking.
-    · <a href="https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md">Live monitoring at your venue</a>
-    · <a href="https://github.com/abhieq31/roomtobreathe">Open source (Apache-2.0)</a>
+    · <a href="https://github.com/abhipatelz/roomtobreathe/blob/main/docs/DEPLOY.md">Live monitoring at your venue</a>
+    · <a href="https://github.com/abhipatelz/roomtobreathe">Open source (Apache-2.0)</a>
   </footer>
   <script type="module" src="js/app.js"></script>
 </body>

@@ -1,6 +1,6 @@
 # Room to Breathe camera device: reads a camera, sends per-zone density and motion numbers.
 # Frames never leave the device. The density model is baked in (checksum verified), so it works offline.
-#   docker run --rm -v $PWD/cam1.json:/cam.json ghcr.io/abhieq31/roomtobreathe-edge \
+#   docker run --rm -v $PWD/cam1.json:/cam.json ghcr.io/abhipatelz/roomtobreathe-edge \
 #     edge --source rtsp://user:pass@cam1/stream --calibration /cam.json --server http://control-room:8000
 FROM python:3.12-slim
 WORKDIR /app

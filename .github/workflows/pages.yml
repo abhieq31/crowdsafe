@@ -1,5 +1,5 @@
 name: Web app
-# Publishes the zero-install web app to https://abhieq31.github.io/roomtobreathe/ on every push to main:
+# Publishes the zero-install web app to https://abhipatelz.github.io/roomtobreathe/ on every push to main:
 # what-if studies (the Python engine, run in the browser with Pyodide), photo counting (DM-Count, run in the
 # browser), capacity planning and the gate counter. Nothing a visitor enters is sent anywhere.
 on:

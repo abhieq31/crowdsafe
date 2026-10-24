@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 RELEASE_TAG = "models-v1"
-RELEASE_URL = f"https://github.com/abhieq31/roomtobreathe/releases/download/{RELEASE_TAG}/"
+RELEASE_URL = f"https://github.com/abhipatelz/roomtobreathe/releases/download/{RELEASE_TAG}/"
 
 
 @dataclass(frozen=True)

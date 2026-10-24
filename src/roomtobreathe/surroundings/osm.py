@@ -26,7 +26,7 @@ MIRRORS = [
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass-api.de/api/interpreter",
 ]
-USER_AGENT = "roomtobreathe (crowd-safety planning; https://github.com/abhieq31/roomtobreathe)"
+USER_AGENT = "roomtobreathe (crowd-safety planning; https://github.com/abhipatelz/roomtobreathe)"
 
 POI_FILTERS = [
     'nwr[amenity~"^(hospital|clinic|police|fire_station|parking|bus_station|taxi|ferry_terminal)$"]',
@@ -124,13 +124,31 @@ def load_or_fetch(
     cache_dir: Optional[str] = None,
     max_age_days: float = 30,
     refresh: bool = False,
+    source: str = "tiles",
 ) -> dict:
-    """Map data from the local cache if it is recent, otherwise from Overpass (and cache it).
-    Streets change slowly; a month-old copy is fine for planning."""
+    """Map data from the local cache if it is recent, otherwise downloaded (and cached).
+
+    ``source="tiles"`` (default) uses OpenStreetMap vector tiles from OpenFreeMap: about a second, and
+    falls back to Overpass if the tiles cannot be reached. ``source="overpass"`` uses the Overpass servers:
+    richer tags (recorded widths, ``emergency=yes``) but often minutes. Streets change slowly; a month-old
+    copy is fine for planning."""
+    if source not in ("tiles", "overpass"):
+        raise ValueError("source must be 'tiles' or 'overpass'")
     p = cache_path(lat, lon, radius_m, cache_dir)
+    if source == "tiles":
+        p = p.with_name(p.stem + "_tiles.json")
     if not refresh and p.exists() and time.time() - p.stat().st_mtime < max_age_days * 86400:
         return json.loads(p.read_text(encoding="utf-8"))
-    data = fetch_osm(lat, lon, radius_m)
+    data = None
+    if source == "tiles":
+        from .tiles import fetch_tiles_osm
+
+        try:
+            data = fetch_tiles_osm(lat, lon, radius_m)
+        except Exception:  # noqa: BLE001 - the CDN is unreachable: use the Overpass servers instead
+            data = None
+    if data is None:
+        data = fetch_osm(lat, lon, radius_m)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(data), encoding="utf-8")
     return data

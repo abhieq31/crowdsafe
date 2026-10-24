@@ -121,6 +121,9 @@ def event_overview(
     notes = list(net.notes)
     if overrides:
         notes.insert(0, f"{len(overrides)} street(s) use your corrections instead of OpenStreetMap's data.")
+    if osm.get("source") == "openfreemap-tiles":
+        notes.append("Map data: OpenStreetMap vector tiles (OpenFreeMap), fast but without recorded footpath "
+                     "widths or emergency-department tags. Use detailed map data for those.")
     for part in osm.get("missing", []):
         notes.append(
             f"The map servers did not send the {part}, so the plan is made without them. Run it again "

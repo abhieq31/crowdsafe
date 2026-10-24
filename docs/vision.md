@@ -41,7 +41,7 @@ map whose sum is the head count. Any model that follows it works with `OnnxDensi
 ### Default model: DM-Count
 
 Install it with one command. It downloads the ONNX file from this project's
-[`models-v1` release](https://github.com/abhieq31/roomtobreathe/releases/tag/models-v1) and checks its SHA-256.
+[`models-v1` release](https://github.com/abhipatelz/roomtobreathe/releases/tag/models-v1) and checks its SHA-256.
 No PyTorch is needed:
 
 ```bash

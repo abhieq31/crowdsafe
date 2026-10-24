@@ -1,6 +1,6 @@
 ## Introducing Room to Breathe 1.1: check if your event is safe from a crowd crush
 
-**Open the app, nothing to install:** https://abhieq31.github.io/roomtobreathe/
+**Open the app, nothing to install:** https://abhipatelz.github.io/roomtobreathe/
 
 ### Why this exists
 People in a crowd crush do not die from panic. They die because the crowd presses on their chests until they
@@ -51,7 +51,7 @@ of individuals. Free and open source (Apache-2.0).
   the outside choke points (Fruin level of service), closes roads and re-checks them, gives a diversion for
   every closure, names receiving hospitals with drive times under event traffic, and plans an ambulance route
   that avoids the crowd. It ends with a deployment plan: every post with its role, staff, place, reason and
-  time. How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
+  time. How it works and its limits: [docs/SURROUNDINGS.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/SURROUNDINGS.md).
 - **Staggered exit, checked automatically.** If streets still overflow after the closures, it works out how
   long the departure must be spread over and adopts it when it helps. Around Eden Gardens for 60,000 people,
   27 overflowing streets become 4 with a 3-wave release over 120 minutes.
@@ -70,16 +70,16 @@ of individuals. Free and open source (Apache-2.0).
 ```bash
 pip install "roomtobreathe[server]"          # control room:   roomtobreathe demo  /  roomtobreathe serve
 pip install "roomtobreathe[vision,onnx]"     # camera device:  roomtobreathe setup && roomtobreathe edge
-docker run -p 8000:8000 ghcr.io/abhieq31/roomtobreathe
+docker run -p 8000:8000 ghcr.io/abhipatelz/roomtobreathe
 ```
-Deployment guide: [docs/DEPLOY.md](https://github.com/abhieq31/roomtobreathe/blob/main/docs/DEPLOY.md).
+Deployment guide: [docs/DEPLOY.md](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/DEPLOY.md).
 
 ### Read before relying on it
 Room to Breathe is **decision support**. Trained people decide and remain responsible. The default density
 model **undercounts the densest crowds by roughly 9–19%**
-([benchmark](https://github.com/abhieq31/roomtobreathe/blob/main/docs/vision.md#benchmark)), so combine
+([benchmark](https://github.com/abhipatelz/roomtobreathe/blob/main/docs/vision.md#benchmark)), so combine
 cameras with gate counts. Calibrate thresholds and playbooks with your police, fire and medical teams before
 the event. There is no face recognition and no individual tracking
-([ETHICS.md](https://github.com/abhieq31/roomtobreathe/blob/main/ETHICS.md)).
+([ETHICS.md](https://github.com/abhipatelz/roomtobreathe/blob/main/ETHICS.md)).
 
 Field pilots, translations and reviews from crowd-safety practitioners are very welcome. Please open an issue.
