@@ -1,6 +1,7 @@
 // "The area around the venue": crowd routes, traffic, emergency access and where to place every team.
 // The computation is the Python engine (roomtobreathe.surroundings), on the control-room server or in this
 // browser (Pyodide). Map data comes from OpenStreetMap's free Overpass servers and is cached in the browser.
+import { fetchTiles } from "./tiles.js";
 import { loadLibs } from "./venuemap.js";
 import { inBrowserEngine, usingServer, venueForChecks } from "./whatif.js";
 
@@ -97,33 +98,6 @@ const status = (t) => { $("#ov-status").textContent = t; };
 async function sha1(text) {
   const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// ------------------------------------------------------------------ fast map data: vector tiles
-// OpenFreeMap serves OpenStreetMap as vector tiles from a CDN: free, no key, no rate limit, about a
-// second for a venue's surroundings. Same tile maths as roomtobreathe/surroundings/tiles.py.
-const TILEJSON = "https://tiles.openfreemap.org/planet", TILE_ZOOM = 14;
-function tilesAround(lat, lon, radiusM, z = TILE_ZOOM) {
-  const n = 2 ** z, rad = (d) => (d * Math.PI) / 180;
-  const tx = (lo) => ((lo + 180) / 360) * n;
-  const ty = (la) => ((1 - Math.asinh(Math.tan(rad(la))) / Math.PI) / 2) * n;
-  const dlat = radiusM / 111320, dlon = radiusM / (111320 * Math.cos(rad(lat)));
-  const out = [];
-  for (let x = Math.floor(tx(lon - dlon)); x <= Math.floor(tx(lon + dlon)); x++)
-    for (let y = Math.floor(ty(lat + dlat)); y <= Math.floor(ty(lat - dlat)); y++) out.push({ z, x, y });
-  return out;
-}
-async function fetchTiles(lat, lon, radiusM) {
-  status("Downloading the streets around the venue (OpenStreetMap vector tiles)…");
-  const meta = await (await fetch(TILEJSON)).json();
-  const template = meta.tiles[0];
-  const want = tilesAround(lat, lon, Math.max(3000, 2 * radiusM));
-  const tiles = await Promise.all(want.map(async (t) => {
-    const r = await fetch(template.replace("{z}", t.z).replace("{x}", t.x).replace("{y}", t.y));
-    if (!r.ok) throw new Error(`map tile ${t.z}/${t.x}/${t.y}: ${r.status}`);
-    return { ...t, data: new Uint8Array(await r.arrayBuffer()) };
-  }));
-  return { tiles, missing: [] };
 }
 
 const PART_NAMES = ["streets", "main roads further out", "stations, stops, car parks, hospitals, police and fire stations"]; // as in osm.py
@@ -240,7 +214,7 @@ async function run(e) {
         osm = lastOsm; // re-planning: same place, no need to download again
       } else if (!detailed()) {
         try {
-          osm = { ...(await fetchTiles(venue.origin[0], venue.origin[1], RADIUS_M)), where };
+          osm = { ...(await fetchTiles(venue.origin[0], venue.origin[1], Math.max(3000, 2 * RADIUS_M), status)), where };
         } catch (err) { // tiles unreachable: fall back to the Overpass servers
           status(`The fast map tiles did not load (${err.message}); asking the OpenStreetMap servers instead…`);
           const queries = await inBrowserEngine(null, { lat: venue.origin[0], lon: venue.origin[1], radius_m: RADIUS_M }, "overpass_queries", {}, "#ov-status");
@@ -303,10 +277,18 @@ async function render(r) {
     ["emergency", "Ambulance route and hospitals", true], ...AGENCIES.map((a) => [`ag:${a}`, a, true]), ["transit", "Stations and pick-up points", true]]
     .map(([k, l, on]) => `<label class="small"><input type="checkbox" data-layer="${esc(k)}"${on ? " checked" : ""}> ${esc(l)}</label>`).join("");
   out.innerHTML = `
-    <div class="verdict-big v-${r.verdict}"><span class="v-icon" aria-hidden="true">${ICON[r.verdict]}</span>
-      <div><div class="v-head">${esc(r.headline)}</div><div class="v-sub">${esc(r.venue)} · ${r.attendance.toLocaleString()} people ·
-        travel: ${esc(Object.entries(r.modes).map(([k, v]) => `${k} ${pct(v)}`).join(", "))}</div></div></div>
-    <ul class="checks">${checks}</ul>
+    <div class="score v-${r.verdict}">
+      <div class="score-head"><span class="v-icon" aria-hidden="true">${ICON[r.verdict]}</span>
+        <div><div class="v-head">${esc(r.headline)}</div><div class="v-sub">${esc(r.venue)} · ${r.attendance.toLocaleString()} people ·
+          travel: ${esc(Object.entries(r.modes).map(([k, v]) => `${k} ${pct(v)}`).join(", "))}</div></div></div>
+      <div class="score-nums">
+        <div class="num"><span class="n">${r.totals.reduce((s, t) => s + t.count, 0).toLocaleString()}</span><span class="l">staff at ${r.deployments.length} posts</span></div>
+        <div class="num"><span class="n">${r.traffic.closures.length}</span><span class="l">roads to close</span></div>
+        <div class="num ${r.choke_points.some((c) => c.los >= "E") ? "bad" : "good"}"><span class="n">${r.choke_points.filter((c) => c.los >= "E").length}</span><span class="l">overloaded streets (arrival or departure)</span></div>
+        <div class="num"><span class="n">${em.hospitals[0] ? `${em.hospitals[0].drive_min} min` : "?"}</span><span class="l">${esc(em.hospitals[0]?.name || "no hospital found")}</span></div>
+      </div>
+    </div>
+    <details class="why" open><summary>What the plan found</summary><ul class="checks">${checks}</ul></details>
     ${timeline(r.times)}
     <div class="ov-layers">${layerBoxes}</div>
     <div id="ov-map" class="wi-map ov-map" aria-label="Map of crowd routes, closures, ambulance route and teams"></div>
@@ -348,7 +330,9 @@ async function render(r) {
 async function drawMap(r) {
   const L = await loadLibs();
   if (map) { map.remove(); map = null; }
-  map = L.map("ov-map");
+  map = L.map("ov-map", { scrollWheelZoom: false }); // the page scrolls; click the map to zoom with the wheel
+  map.on("click", () => map.scrollWheelZoom.enable());
+  map.on("mouseout", () => map.scrollWheelZoom.disable());
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(map);
   groups = {};
   const group = (k) => (groups[k] ??= L.layerGroup().addTo(map));
@@ -422,8 +406,20 @@ async function printable(agency) {
   }
 }
 
+// The one-line summary of the assumptions, so they are visible without opening the form.
+function summariseAssumptions() {
+  const f = new FormData($("#ov-form"));
+  const names = { metro: "metro", rail: "train", bus: "bus", ferry: "ferry", car: "car/taxi", walk: "on foot" };
+  const modes = Object.entries(names).filter(([k]) => Number(f.get(k)) > 0).map(([k, n]) => `${n} ${f.get(k)}%`).join(", ");
+  const dur = $('#ov-form [name="duration"]').selectedOptions[0]?.textContent || "";
+  const foot = $('#ov-form [name="public_level"]').selectedOptions[0]?.textContent.toLowerCase() || "";
+  $("#ov-assume-sum").textContent = `${modes} · ends after ${dur} · ${foot}${$("#ov-detailed")?.checked ? " · detailed map data" : ""}`;
+}
+
 export function initOverview() {
   $("#ov-form")?.addEventListener("submit", run);
+  $("#ov-form")?.addEventListener("change", summariseAssumptions);
+  if ($("#ov-form")) summariseAssumptions();
   $("#ov-file")?.addEventListener("change", async (e) => {
     const f = e.target.files[0];
     mapFile = f ? await f.text() : null;

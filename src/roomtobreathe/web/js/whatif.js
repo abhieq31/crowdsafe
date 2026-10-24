@@ -1,6 +1,6 @@
 import { round2, toLocal } from "./geo.js";
 import { polygonArea } from "./geometry.js";
-import { openMap, refreshMap } from "./venuemap.js";
+import { openMap, refreshMap, searchPlace } from "./venuemap.js";
 
 // What-if studies in the browser. The computation is the Python engine itself (roomtobreathe.whatif):
 // on a control-room server it runs there (POST /api/whatif); on a plain web host it runs in this browser
@@ -109,6 +109,7 @@ function onBuilderInput(e) {
   const item = list[Number(row.dataset.i)];
   const k = e.target.dataset.k;
   item[k] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+  if (k === "width") { delete item.guessed; delete item.estimated; } // a typed width is a measured width
   store.set("wi-draft", draft);
   if (k === "name" && !row.classList.contains("gate")) renderBuilder(); // zone names appear in gate menus
   refreshVenue();
@@ -123,6 +124,16 @@ function currentVenue() {
   return { venue: serverVenue || demoVenue, problems: [] };
 }
 function refreshVenue() {
+  queueMicrotask(updateGuide);
+  // On the map path the editing lists appear once there is a venue to edit: no jargon before it is needed.
+  const b = $("#wi-builder");
+  const sizes = store.get("wi-mode", "map") === "sizes";
+  if (b) b.classList.toggle("has-venue", draft.zones.length > 0 || draft.gates.length > 0 || sizes);
+  const lists = $("#wi-lists");
+  if (lists) {
+    if (sizes) lists.open = true;
+    $("#wi-lists-sum").textContent = `${plural(draft.zones.length, "area")}, ${plural(draft.gates.length, "way")} in or out`;
+  }
   const { venue, problems } = currentVenue();
   const out = $("#wi-venue-out");
   const sel = $('#wi-form [name="blocked_gate"]');
@@ -140,7 +151,7 @@ function refreshVenue() {
     ?? (z.area_m2 ?? (z.polygon?.length ? polygonArea(z.polygon) : 0)) * (z.usable_fraction ?? 1);
   const area = venue.zones.reduce((s, z) => s + zoneArea(z), 0);
   out.innerHTML = problems.map((p) => `<p class="err">${esc(p)}</p>`).join("")
-    + `<p><b>${esc(venue.name)}</b>: ${plural(venue.zones.length, "zone")}, ${plural(venue.gates.length, "gate")}, ${Math.round(area).toLocaleString()} m² usable.</p>`;
+    + `<p><b>${esc(venue.name)}</b>: ${Math.round(area).toLocaleString()} m² where people can stand, ${plural(venue.gates.length, "way")} in or out.</p>`;
 }
 
 // ------------------------------------------------------------------ engine
@@ -275,35 +286,116 @@ async function run(e) {
   }
 }
 
+// ------------------------------------------------------------------ the step guide
+// Four steps shown at the top: what is done, what is next. Each one jumps to its place on the page.
+function updateGuide() {
+  const guide = $("#guide");
+  if (!guide) return;
+  const { venue, problems } = currentVenue();
+  const custom = $("#wi-src").value === "custom";
+  const done = {
+    venue: Boolean(venue) && !problems.length && (!custom || draft.zones.length > 0),
+    people: Number($('#as-form [name="attendance"]')?.value) > 0,
+    verdict: !$("#as-result").hidden,
+    teams: !$("#ov-out").hidden,
+  };
+  let next = null;
+  for (const li of guide.querySelectorAll("li[data-step]")) {
+    const d = done[li.dataset.step];
+    li.classList.toggle("done", d);
+    li.classList.toggle("now", !d && !next);
+    if (!d && !next) next = li.dataset.step;
+  }
+}
+const GUIDE_TARGET = { venue: ".pl-venue", people: '#as-form [name="attendance"]', verdict: "#as-result", teams: "#ov-card" };
+function initGuide() {
+  const guide = $("#guide");
+  if (!guide) return;
+  guide.addEventListener("click", (e) => {
+    const li = e.target.closest("li[data-step]");
+    if (!li) return;
+    let el = $(GUIDE_TARGET[li.dataset.step]);
+    if (li.dataset.step === "verdict" && el.hidden) el = $('#as-form [name="attendance"]');
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (el?.matches("input")) setTimeout(() => el.focus({ preventScroll: true }), 300);
+  });
+  $("#as-form").addEventListener("input", updateGuide);
+  const watch = new MutationObserver(updateGuide);
+  for (const id of ["#as-result", "#ov-out"]) watch.observe($(id), { attributes: true, attributeFilter: ["hidden"] });
+  updateGuide();
+}
+
 // ------------------------------------------------------------------ the verdict
 const ICON = { pass: "✓", warn: "!", fail: "✕" };
 function renderVerdict(r, venue) {
   const box = $("#as-result");
+  const n = r.numbers || {};
+  const over = r.attendance > r.safe_capacity;
+  const num = (value, label, cls = "") => `<div class="num ${cls}"><span class="n">${value}</span><span class="l">${esc(label)}</span></div>`;
+  const evac = n.evacuation_minutes === null || n.evacuation_minutes === undefined ? "> 45 min" : `${fmt(n.evacuation_minutes, 0)} min`;
   const checks = r.checks.map((c) => `<li class="c-${c.level}"><span class="c-icon" aria-hidden="true">${ICON[c.level]}</span>
     <div><b>${esc(c.title)}</b><div class="small">${esc(c.detail)}</div></div></li>`).join("");
-  const fixes = r.fixes.length ? `<h3>What to do</h3><ol class="fixes">${r.fixes.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>` : "";
+  const todo = r.fixes.length
+    ? `<h3>What to do</h3><ol class="todo">${r.fixes.map((f) => `<li><span>${esc(f)}</span></li>`).join("")}</ol>`
+    : `<p><b>Nothing to change.</b> Keep counting people at the gates on the day.</p>`;
+  const located = Boolean(venue.origin);
   const surge = r.surge;
+  // Never surprise: if the ways in were guessed from the map, the capacity is only as good as the guess.
+  const custom = $("#wi-src").value === "custom";
+  const guessed = custom && draft.gates.some((g) => g.guessed);
+  const estimated = custom && draft.gates.some((g) => g.estimated);
+  const caveat = guessed
+    ? `<div class="caveat"><b>Based on guessed ways in.</b> The map has no gates for this venue, so ${draft.gates.length} were
+        placed at the points nearest the streets, ${draft.gates[0]?.width || 4} m wide. Move them to the real gates and set their
+        widths (on the map: Adjust shapes; or "Edit areas and ways in"), then check again.</div>`
+    : estimated ? `<div class="caveat">Gate widths are estimated from the street type. Measure the real openings for a firm capacity.</div>` : "";
   box.innerHTML = `
-    <div class="verdict-big v-${r.verdict}">
-      <span class="v-icon" aria-hidden="true">${ICON[r.verdict]}</span>
-      <div><div class="v-head">${esc(r.headline)}</div>
-        <div class="v-sub">${esc(r.venue)} · safe capacity ${r.safe_capacity.toLocaleString()} · arriving over ${fmt(r.arrival_minutes, 0)} min</div></div>
+    <div class="score v-${r.verdict}">
+      <div class="score-head"><span class="v-icon" aria-hidden="true">${ICON[r.verdict]}</span>
+        <div><div class="v-head">${esc(r.headline)}</div>
+          <div class="v-sub">${esc(r.venue)} · arriving over ${fmt(r.arrival_minutes, 0)} min</div></div></div>
+      <div class="score-nums">
+        ${num(r.safe_capacity.toLocaleString(), "safe capacity", over ? "" : "good")}
+        ${num(r.attendance.toLocaleString(), "people expected", over ? "bad" : "")}
+        ${num(evac, "to get everyone out", n.evacuation_minutes > 15 || n.evacuation_minutes === null ? "bad" : "")}
+        ${n.peak_density !== null && n.peak_density !== undefined ? num(`${fmt(n.peak_density, 1)}/m²`, "most crowded spot", n.peak_density >= 5.5 ? "bad" : "") : ""}
+      </div>
     </div>
-    <ul class="checks">${checks}</ul>
-    ${fixes}
+    ${caveat}
+    ${todo}
+    <div class="next-step">
+      <p><b>Next: the area around the venue.</b><br><span class="small muted">Streets, stations, traffic, ambulances, and where to
+        place police, traffic police and medical teams.</span></p>
+      <button type="button" class="btn-next" id="as-next">${located ? "Plan police, traffic and medical teams →" : "Find the venue on the map first"}</button>
+    </div>
+    <details class="why"><summary>Why: the ${r.checks.length} checks behind this verdict</summary><ul class="checks">${checks}</ul></details>
     <details class="more"><summary>See a surge minute by minute</summary>
       <p class="small muted">Arrivals jump 2.5× a third of the way in. Left: nobody acts. Right: operators approve the
         response plan at the first RED alert.</p>
       <div class="grid plan-grid">${chart(surge.no_response, venue, "Nobody acts")}${chart(surge.with_response, venue, "With the response plan")}</div>
     </details>
     <div class="btns">
-      <button type="button" id="as-save" class="primary">Save this venue</button>
+      <button type="button" id="as-save">Save this venue</button>
       <button type="button" class="link" data-goto="count">On the day: count people at the gates →</button>
     </div>
-    <p class="small muted">Decision support, not a guarantee: a model of people per zone and flow through gates. Walk the
-      site, rehearse your response, and recheck if anything changes.</p>`;
+    <p class="small muted">Decision support, not a guarantee: a model of people per area and flow through the ways in and out.
+      Walk the site, rehearse your response, and recheck if anything changes.</p>`;
   box.hidden = false;
   $("#as-save").addEventListener("click", () => $("#wi-download").click());
+  $("#as-next").addEventListener("click", () => {
+    if (!located) { document.querySelector('.choice-btn[data-src="map"]')?.click(); $("#wi-map-q")?.focus(); return; }
+    $("#ov-card").scrollIntoView({ block: "start", behavior: "smooth" });
+    $("#ov-form").requestSubmit();
+  });
+  const bb = $("#bb-summary");
+  if (bb) {
+    bb.innerHTML = `<div class="bb-v v-${r.verdict}">${ICON[r.verdict]} ${esc(r.headline)}</div>
+      <div class="bb-n">${r.safe_capacity.toLocaleString()}</div><div class="small muted">safe capacity, with the largest exit blocked</div>
+      ${guessed ? `<div class="small caveat-mini">Based on guessed ways in: set the real gates for a firm number.</div>` : ""}
+      <button type="button" class="link" id="bb-see">See what to do ↓</button>`;
+    bb.hidden = false;
+    $("#bb-see").addEventListener("click", () => box.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }
 }
 
 async function check(e) {
@@ -417,6 +509,22 @@ export async function initWhatIf({ online }) {
     URL.revokeObjectURL(a.href);
   });
   $("#wi-form").addEventListener("submit", run);
+  initGuide();
+  // The header search: find the venue from anywhere in the app.
+  $("#nav-search")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = $("#nav-q").value.trim();
+    if (!q) { $("#nav-q").focus(); return; }
+    document.querySelector('.tabs button[data-tab="whatif"]')?.click();
+    setMode("map");
+    searchPlace(q);
+  });
+  // A venue found and accepted in one click: the next thing to type is the number of people.
+  document.addEventListener("rtb:venue-ready", () => {
+    const people = $('#as-form [name="attendance"]');
+    people.scrollIntoView({ block: "center", behavior: "smooth" });
+    setTimeout(() => people.focus({ preventScroll: true }), 400);
+  });
   $("#as-form").addEventListener("submit", check);
   const saved = store.get("as-people", null);
   if (saved) $('#as-form [name="attendance"]').value = saved;

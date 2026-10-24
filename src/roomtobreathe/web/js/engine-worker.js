@@ -17,7 +17,8 @@ async function start() {
   await py.pyimport("micropip").install(wheel.href, { deps: false });
   py.runPython("import json\nfrom roomtobreathe.whatif import describe, run_whatif\nfrom roomtobreathe.assess import assess_event\n"
     + "from roomtobreathe.surroundings import event_overview, merge_osm, overpass_queries, parse_osm, render_html\n"
-    + "from roomtobreathe.surroundings.tiles import tiles_to_osm");
+    + "from roomtobreathe.surroundings.tiles import tiles_to_osm\n"
+    + "from roomtobreathe.surroundings.venue_detect import detect_gates");
   return py;
 }
 
@@ -29,7 +30,16 @@ self.onmessage = async (e) => {
     py.globals.set("venue_json", JSON.stringify(e.data.venue));
     py.globals.set("params_json", JSON.stringify(e.data.params));
     let out;
-    if (e.data.kind === "overpass_queries") {
+    if (e.data.kind === "detect_gates") {
+      // The ways into a venue outline: where the streets and paths from the tiles cross it.
+      py.globals.set("tile_list", py.toPy((e.data.tiles || []).map((t) => [t.z, t.x, t.y, t.data])));
+      out = py.runPython("p = json.loads(params_json)\n"
+        + "blob = lambda b: b.to_bytes() if hasattr(b, 'to_bytes') else bytes(b)\n"
+        + "o = tuple(p['origin'])\n"
+        + "osm = tiles_to_osm([((int(t[0]), int(t[1]), int(t[2])), blob(t[3])) for t in tile_list], o, p.get('radius_m', 800))\n"
+        + "json.dumps(detect_gates(osm, [tuple(x) for x in p['ring']], o, p.get('name', '')))");
+      py.globals.delete("tile_list");
+    } else if (e.data.kind === "overpass_queries") {
       out = py.runPython("p = json.loads(params_json)\njson.dumps(overpass_queries(p['lat'], p['lon'], p['radius_m']))");
     } else if (e.data.kind === "overview") {
       postMessage({ status: "Routing the crowd and the traffic through the streets, and placing teams…" });
